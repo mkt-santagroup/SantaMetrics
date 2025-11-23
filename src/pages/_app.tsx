@@ -1,25 +1,41 @@
-import '@/styles/globals.css'; // Mantenha seus estilos globais se tiver
+import '@/styles/globals.css';
 import type { AppProps } from 'next/app';
-import Head from 'next/head'; // <--- IMPORTANTE: O componente que controla o <head> do HTML
+import Head from 'next/head';
 
 export default function App({ Component, pageProps }: AppProps) {
+  // Substitua pelo seu link do Railway (sem a barra no final)
+  // Exemplo: https://santametrics.up.railway.app
+  const baseUrl = 'https://SEU-DOMINIO-DO-RAILWAY.app'; 
+
   return (
     <>
       <Head>
-        {/* TÍTULO DA ABA */}
+        {/* --- TÍTULO E ÍCONE --- */}
         <title>SantaMetrics</title>
-        
-        {/* DESCRIÇÃO (Opcional, bom pro Google) */}
-        <meta name="description" content="Dashboard de Leads Realtime SantaGroup" />
-        
-        {/* FAVICON (Sua logo na pasta public) */}
-        {/* Certifique-se que o nome do arquivo aqui bate com o que você colocou na pasta public */}
         <link rel="icon" href="/santa-logo.png" type="image/png" />
-        
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+        {/* --- DESCRIÇÃO PADRÃO (Para o Google) --- */}
+        <meta name="description" content="Dashboard de gerenciamento de leads do SantaGroup." />
+
+        {/* --- OPEN GRAPH (Para WhatsApp, Discord, Facebook) --- */}
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content="SantaMetrics" />
+        <meta property="og:description" content="Acesse o painel de controle de leads em tempo real." />
+        <meta property="og:site_name" content="SantaMetrics" />
+        
+        {/* IMPORTANTE: O WhatsApp prefere links completos para imagens */}
+        <meta property="og:image" content={`${baseUrl}/santa-logo.png`} />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+
+        {/* --- TWITTER CARD (Opcional, mas bom ter) --- */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="SantaMetrics" />
+        <meta name="twitter:description" content="Dashboard de gerenciamento de leads." />
+        <meta name="twitter:image" content={`${baseUrl}/santa-logo.png`} />
       </Head>
       
-      {/* Aqui é onde sua página (Dashboard) é renderizada */}
       <Component {...pageProps} />
     </>
   );

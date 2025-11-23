@@ -1,0 +1,149 @@
+.container {
+  animation: fadeIn 0.4s ease-out;
+  font-family: 'Montserrat', sans-serif;
+  margin-top: 1rem;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* --- GRID DE CARDS --- */
+.gridCards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+/* O NOVO ESTILO DO CARD (Igual a referência) */
+.card {
+  background: white;
+  padding: 2rem; /* Mais espaçamento interno */
+  border-radius: 24px; /* Bem arredondado */
+  border: none; /* Sem borda dura */
+  /* Sombra suave e difusa "estilo Apple/Moderno" */
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.06), 0 10px 20px -5px rgba(0, 0, 0, 0.02);
+  display: flex;
+  flex-direction: column; /* Ícone em cima, texto embaixo para ficar mais limpo */
+  align-items: flex-start;
+  gap: 1rem;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
+}
+
+.cardIcon {
+  /* Removemos os fundos coloridos aqui */
+  background: transparent !important; 
+  color: #000 !important; /* Ícone preto puro */
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cardContent {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.cardLabel {
+  font-size: 0.75rem;
+  color: #888; /* Cinza um pouco mais claro para contraste */
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin: 0;
+}
+
+.cardValue {
+  font-size: 2.25rem; /* Número maior */
+  font-weight: 800;
+  color: #000; /* Preto puro */
+  line-height: 1;
+  margin: 0;
+}
+
+.subValue {
+  font-size: 0.9rem;
+  color: #666;
+  font-weight: 500;
+  margin-left: 8px;
+}
+
+/* --- GRID DOS GRÁFICOS --- */
+.chartsGrid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1.5rem;
+}
+
+@media (max-width: 1000px) {
+  .chartsGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Aplica o mesmo estilo dos cards aos containers dos gráficos */
+.chartContainer {
+  background: white;
+  padding: 2rem;
+  border-radius: 24px; /* Bem arredondado */
+  border: none;
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.06), 0 10px 20px -5px rgba(0, 0, 0, 0.02);
+}
+
+.chartContainer h3 {
+  margin: 0 0 2rem 0;
+  font-size: 1.1rem;
+  color: #000;
+  font-weight: 700;
+}
+
+/* --- LISTA DE ETAPAS (Gargalos) --- */
+.stageList {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.stageRow {
+  width: 100%;
+}
+
+.stageInfo {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.stageName {
+  font-weight: 600;
+  color: #000;
+}
+
+.stageCount {
+  color: #666;
+  font-weight: 500;
+}
+
+.progressBarBg {
+  width: 100%;
+  height: 8px;
+  background-color: #f0f0f0; /* Cinza mais claro */
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.progressBarFill {
+  height: 100%;
+  background-color: #000; /* Preto */
+  border-radius: 99px;
+}

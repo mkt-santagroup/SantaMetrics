@@ -1,0 +1,144 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap');
+
+/* --- LAYOUT GERAL --- */
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 2.5rem;
+  font-family: 'Montserrat', sans-serif;
+}
+
+.pageHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 3rem;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+}
+
+/* --- TEXTOS --- */
+.title {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #000;
+  margin: 0;
+  letter-spacing: -0.03em;
+}
+
+.subtitle {
+  color: #888;
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+
+/* --- BADGE LIVE --- */
+.liveBadge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 99px;
+  letter-spacing: 0.05em;
+  transition: all 0.3s ease;
+}
+
+/* --- ÁREA DE AÇÕES --- */
+.actions {
+  display: flex;
+  align-items: center;
+}
+
+/* GRUPO DE FILTROS (Pílula Container) */
+.filterGroup {
+  background: white;
+  padding: 5px;
+  border-radius: 99px;
+  display: flex;
+  gap: 2px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.02);
+}
+
+/* BOTÃO DE FILTRO (Estado Padrão) */
+.filterBtn {
+  background: transparent;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 99px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #9ca3af; /* Cinza claro */
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  outline: none;
+}
+
+.filterBtn:hover {
+  color: #000;
+  background-color: #f3f4f6;
+}
+
+/* BOTÃO DE FILTRO (Estado Ativo) */
+.filterBtnActive {
+  background-color: #000 !important;
+  color: #fff !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transform: scale(1.02);
+}
+
+/* --- LOADING E ANIMAÇÕES --- */
+.loading {
+  text-align: center;
+  padding: 6rem;
+  color: #9ca3af;
+  font-weight: 500;
+  font-size: 1.1rem;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 0.5; }
+  50% { opacity: 1; }
+  100% { opacity: 0.5; }
+}
+
+.content {
+  animation: fadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(15px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* --- RESPONSIVIDADE --- */
+@media (max-width: 768px) {
+  .pageHeader {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1.5rem;
+  }
+  
+  .actions {
+    width: 100%;
+  }
+
+  .filterGroup {
+    width: 100%;
+    justify-content: space-between;
+    overflow-x: auto;
+  }
+  
+  .filterBtn {
+    flex: 1;
+    white-space: nowrap;
+    text-align: center;
+    padding: 10px 12px;
+  }
+}

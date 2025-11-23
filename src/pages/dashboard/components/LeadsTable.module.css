@@ -1,0 +1,165 @@
+.tableContainer {
+  background: white;
+  border-radius: 24px; /* Acompanha o estilo dos cards */
+  /* Sombra Premium */
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.06), 0 10px 20px -5px rgba(0, 0, 0, 0.02);
+  border: none;
+  overflow: hidden;
+  margin-top: 1.5rem;
+  font-family: 'Montserrat', sans-serif;
+}
+
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  text-align: left;
+}
+
+/* CABEÇALHO */
+.table th {
+  background-color: #fff; /* Fundo branco puro */
+  color: #888;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 1.5rem 2rem;
+  border-bottom: 1px solid #f0f0f0; /* Divisória muito sutil */
+}
+
+/* CÉLULAS */
+.table td {
+  padding: 1.25rem 2rem;
+  border-bottom: 1px solid #f9f9f9;
+  vertical-align: middle;
+  font-size: 0.95rem;
+  color: #000;
+  transition: background 0.2s;
+}
+
+.table tr:last-child td {
+  border-bottom: none;
+}
+
+/* Hover na linha inteira */
+.clickableRow {
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.clickableRow:hover td {
+  background-color: #fafafa; /* Cinza super claro no hover */
+}
+
+/* ESTILOS ESPECÍFICOS */
+.dateCell {
+  color: #666;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.phoneCell {
+  font-family: 'Montserrat', monospace; /* Mantem a fonte mas com numeros alinhados */
+  color: #444;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.nameCell {
+  font-weight: 700;
+  color: #000;
+  font-size: 1rem;
+}
+
+.nameWrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.unknown {
+  color: #ccc;
+  font-style: italic;
+  font-weight: 400;
+}
+
+.spamIcon {
+  color: #ef4444;
+}
+
+/* BADGE DA ETAPA (Estilo Pílula Clean) */
+.badge {
+  display: inline-block;
+  background: #f5f5f5;
+  color: #000;
+  padding: 6px 14px;
+  border-radius: 99px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* BADGE PC */
+.colCenter {
+  text-align: center;
+  width: 120px;
+}
+
+.pcBadgeActive {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background-color: #000; /* Preto forte */
+  color: #fff;
+  padding: 6px 14px;
+  border-radius: 99px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.2); /* Sombrainha no badge */
+}
+
+.pcBadgeNeutral {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background-color: #f5f5f5;
+  color: #888;
+  padding: 6px 14px;
+  border-radius: 99px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.pcBadgeInactive {
+  color: #eee;
+  font-weight: 700;
+}
+
+/* OBSERVAÇÕES */
+.obsCell {
+  max-width: 300px;
+}
+
+.obsText {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #888;
+  font-size: 0.85rem;
+}
+
+.emptyObs {
+  color: #eee;
+}
+
+.emptyState {
+  text-align: center;
+  padding: 4rem;
+  color: #aaa;
+  font-weight: 500;
+}

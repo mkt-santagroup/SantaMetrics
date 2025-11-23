@@ -1,8 +1,9 @@
 import { useEffect, useState, useMemo } from 'react';
+import { useRouter } from 'next/router'; // <--- Para redirecionamento
+import Cookies from 'js-cookie';         // <--- Para checar o login
 import { supabase } from '@/lib/supabaseClient';
 import { Lead } from '@/types/leads';
 import styles from './page.module.css';
-// MUDANÇA AQUI: Ajustando os imports para a nova pasta
 import LeadsTable from '@/components/LeadsTable';
 import LeadModal from '@/components/LeadModal';
 import Navbar from '@/components/Navbar';
@@ -11,14 +12,34 @@ import { isSameDay, subDays, isAfter } from 'date-fns';
 import { Wifi, WifiOff } from 'lucide-react';
 
 export default function Dashboard() {
+  const router = useRouter();
+  
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  
+  // Navegação e Filtros
   const [currentTab, setCurrentTab] = useState<'overview' | 'leads'>('overview');
   const [dateFilter, setDateFilter] = useState('7days'); 
+  
+  // Status Realtime
   const [isConnected, setIsConnected] = useState(false);
 
+  // 1. VERIFICAÇÃO DE SEGURANÇA (Proteção de Rota)
   useEffect(() => {
+    const token = Cookies.get('santa_auth');
+    // Se não tiver o cookie ou o valor estiver errado, chuta pro login
+    if (token !== 'logado') {
+      router.push('/');
+    }
+  }, [router]);
+
+  // 2. Busca de Dados e Realtime
+  useEffect(() => {
+    // Só busca se estiver logado (para evitar chamada desnecessária enquanto redireciona)
+    const token = Cookies.get('santa_auth');
+    if (token !== 'logado') return;
+
     fetchLeads();
 
     const channel = supabase
@@ -99,7 +120,7 @@ export default function Dashboard() {
             </h1>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '0.5rem' }}>
               <p className={styles.subtitle} style={{ margin: 0 }}>
-                Dados em tempo real do WhatsApp
+                Dados em tempo real
               </p>
               <div className={styles.liveBadge} style={{ 
                 background: isConnected ? '#dcfce7' : '#fee2e2',

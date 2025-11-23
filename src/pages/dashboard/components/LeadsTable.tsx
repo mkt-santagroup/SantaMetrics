@@ -3,7 +3,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import styles from './LeadsTable.module.css';
 import { Monitor, AlertCircle } from 'lucide-react';
-import { getStageName } from '@/utils/stageMap'; // <--- IMPORT NOVO
+import { getStageName } from '@/utils/stageMap';
 
 interface LeadsTableProps {
   leads: Lead[];
@@ -29,7 +29,7 @@ export default function LeadsTable({ leads, onSelectLead }: LeadsTableProps) {
             <th className={styles.colDate}>Data e Hora</th>
             <th>Número</th>
             <th>Nome</th>
-            <th>Etapa Atual</th> {/* Mudei o titulo pra ficar chique */}
+            <th>Etapa Atual</th>
             <th className={styles.colCenter}>Tem PC?</th>
             <th>Observações</th>
           </tr>
@@ -38,8 +38,6 @@ export default function LeadsTable({ leads, onSelectLead }: LeadsTableProps) {
           {leads.map((lead) => {
             const textoPC = lead.tem_pc || '-';
             const ehPositivo = textoPC.toLowerCase().includes('sim');
-            
-            // AQUI A MÁGICA: Pega o nome bonito
             const friendlyStage = getStageName(lead.etapa);
 
             return (
@@ -56,14 +54,16 @@ export default function LeadsTable({ leads, onSelectLead }: LeadsTableProps) {
                 </td>
                 <td className={styles.nameCell}>
                   <div className={styles.nameWrapper}>
+                    {/* CORREÇÃO DO ERRO AQUI: Envelopamos o ícone numa span */}
                     {lead.spam && (
-                      <AlertCircle size={14} className={styles.spamIcon} title="Possível SPAM" />
+                      <span title="Possível SPAM" style={{ display: 'flex', alignItems: 'center' }}>
+                         <AlertCircle size={14} className={styles.spamIcon} />
+                      </span>
                     )}
                     {lead.nome || <span className={styles.unknown}>Desconhecido</span>}
                   </div>
                 </td>
                 
-                {/* Badge com nome bonito */}
                 <td>
                   <span className={styles.badge} title={lead.etapa || ''}>
                     {friendlyStage}

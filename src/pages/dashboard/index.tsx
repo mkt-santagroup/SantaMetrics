@@ -134,7 +134,6 @@ export default function Dashboard() {
       const { data, error } = await supabase
         .from('CALL-UNIVESO-RP-LEADS')
         .select('*')
-        // Ordenamos pelo ID ou created_at desc para pegar os mais recentes
         .order('ID', { ascending: false }); 
       
       if (error) throw error;
@@ -144,9 +143,7 @@ export default function Dashboard() {
     }
   }
 
-  // --- LÓGICA DE FILTROS (PARA TABELA DE LEADS GERAL) ---
-  // Nota: A tabela de Call Center faz a filtragem internamente com base no dateFilter passado via prop
-  
+  // --- LÓGICA DE FILTROS (DATA - Para Dashboard Geral) ---
   const filteredLeads = useMemo(() => {
     const today = new Date();
     return leads.filter(lead => {
@@ -177,13 +174,13 @@ export default function Dashboard() {
         {/* --- CABEÇALHO DA PÁGINA --- */}
         <div className={styles.pageHeader}>
           <div>
-            <h1 className={styles.title}>
+            <h1 className={styles.title} style={{ color: 'var(--text-primary)' }}>
               {currentTab === 'overview' && 'Visão Geral'}
               {currentTab === 'leads' && 'Gerenciamento de Leads'}
               {currentTab === 'call' && 'Call Center & Engajamento'}
             </h1>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '0.5rem' }}>
-              <p className={styles.subtitle} style={{ margin: 0 }}>
+              <p className={styles.subtitle} style={{ margin: 0, color: 'var(--text-secondary)' }}>
                 Dados em tempo real
               </p>
               <div className={styles.liveBadge} style={{ 
@@ -199,12 +196,15 @@ export default function Dashboard() {
 
           {/* FILTROS DE DATA (Visíveis em todas as abas) */}
           <div className={styles.actions}>
-            <div className={styles.filterGroup}>
+            <div className={styles.filterGroup} style={{ background: 'var(--bg-card)', borderColor: 'var(--border-color)' }}>
               {filterOptions.map((option) => (
                 <button
                   key={option.value}
                   onClick={() => setDateFilter(option.value)}
                   className={`${styles.filterBtn} ${dateFilter === option.value ? styles.filterBtnActive : ''}`}
+                  style={{ 
+                    color: dateFilter !== option.value ? 'var(--text-secondary)' : undefined,
+                  }}
                 >
                   {option.label}
                 </button>
@@ -216,7 +216,9 @@ export default function Dashboard() {
         {/* --- CONTEÚDO PRINCIPAL --- */}
         <main className={styles.content}>
           {loading && leads.length === 0 ? (
-            <div className={styles.loading}>Conectando ao banco de dados... 🛰️</div>
+            <div className={styles.loading} style={{ color: 'var(--text-secondary)' }}>
+              Conectando ao banco de dados... 🛰️
+            </div>
           ) : (
             <>
               {/* ABA 1: DASHBOARD GERAL */}
@@ -232,13 +234,13 @@ export default function Dashboard() {
               {/* ABA 3: CALL CENTER (DASHBOARD + TABELA) */}
               {currentTab === 'call' && (
                 <>
-                  {/* Dashboard recebe o filtro para calcular os KPIs baseado na data */}
+                  {/* CORREÇÃO: Passando o filtro de data para os dois componentes */}
                   <CallDashboardOverview 
                     data={callLeads} 
                     dateFilter={dateFilter} 
                   />
                   
-                  {/* Tabela recebe o filtro para mostrar apenas os registros da data selecionada */}
+                  {/* AQUI ESTAVA O ERRO NO SEU BUILD: Agora tem dateFilter */}
                   <CallLeadsTable 
                     data={callLeads} 
                     dateFilter={dateFilter} 

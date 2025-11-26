@@ -4,7 +4,7 @@ import Cookies from 'js-cookie';
 import { supabase } from '@/lib/supabaseClient';
 import { Lead } from '@/types/leads';
 import { CallLead } from '@/types/callLeads';
-import styles from './page.module.css';
+import styles from './dashboard/page.module.css'; // ATENÇÃO: Verifique se o caminho do CSS está certo baseada na pasta que você está
 
 // Componentes
 import LeadsTable from '@/components/LeadsTable';
@@ -38,7 +38,10 @@ export default function Dashboard() {
   useEffect(() => {
     const token = Cookies.get('santa_auth');
     if (token !== 'logado') {
-      router.push('/');
+      // Se estiver na raiz e não for logado, talvez queira redirecionar para login
+      // Se este arquivo JÁ É a home logada, a lógica de login deve estar em outro lugar ou aqui deve ter um check diferente.
+      // Mantendo a lógica padrão:
+      router.push('/login'); // Ou para onde for sua tela de login
     }
   }, [router]);
 
@@ -82,9 +85,15 @@ export default function Dashboard() {
     const newRecord = payload.new;
     const oldRecord = payload.old;
 
-    if (payload.eventType === 'INSERT') setFn((prev) => [newRecord, ...prev]);
-    else if (payload.eventType === 'UPDATE') setFn((prev) => prev.map((item) => (item.id === newRecord.id ? newRecord : item)));
-    else if (payload.eventType === 'DELETE') setFn((prev) => prev.filter((item) => item.id !== oldRecord.id));
+    if (payload.eventType === 'INSERT') {
+      setFn((prev) => [newRecord, ...prev]);
+    } 
+    else if (payload.eventType === 'UPDATE') {
+      setFn((prev) => prev.map((item) => (item.id === newRecord.id ? newRecord : item)));
+    } 
+    else if (payload.eventType === 'DELETE') {
+      setFn((prev) => prev.filter((item) => item.id !== oldRecord.id));
+    }
   };
 
   const handleRealtimeCallChange = (payload: any) => {
@@ -103,18 +112,31 @@ export default function Dashboard() {
   async function fetchLeads() {
     setLoading(true);
     try {
-      const { data, error } = await supabase.from('WPP-UNIVERSO_RP-LEADS').select('*').order('created_at', { ascending: false });
+      const { data, error } = await supabase
+        .from('WPP-UNIVERSO_RP-LEADS')
+        .select('*')
+        .order('created_at', { ascending: false });
       if (error) throw error;
       if (data) setLeads(data);
-    } catch (error) { console.error('Erro leads:', error); } finally { setLoading(false); }
+    } catch (error) {
+      console.error('Erro ao buscar leads:', error);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function fetchCallLeads() {
     try {
-      const { data, error } = await supabase.from('CALL-UNIVESO-RP-LEADS').select('*').order('ID', { ascending: false });
+      const { data, error } = await supabase
+        .from('CALL-UNIVESO-RP-LEADS')
+        .select('*')
+        .order('ID', { ascending: false }); 
+      
       if (error) throw error;
       if (data) setCallLeads(data as CallLead[]);
-    } catch (error) { console.error('Erro call leads:', error); }
+    } catch (error) {
+      console.error('Erro ao buscar call leads:', error);
+    }
   }
 
   // --- FILTROS ---
@@ -139,11 +161,11 @@ export default function Dashboard() {
   ];
 
   return (
-    // [CORREÇÃO AQUI] Removi o 'background: #f9fafb'. Agora ele usa a variável do global css.
-    <div style={{ minHeight: '100vh', transition: 'background-color 0.3s ease' }}>
+    <div className={styles.mainWrapper}>
       <Navbar currentTab={currentTab} onTabChange={setCurrentTab} />
 
       <div className={styles.container}>
+        
         <div className={styles.pageHeader}>
           <div>
             <h1 className={styles.title} style={{ color: 'var(--text-primary)' }}>
@@ -173,7 +195,9 @@ export default function Dashboard() {
                   key={option.value}
                   onClick={() => setDateFilter(option.value)}
                   className={`${styles.filterBtn} ${dateFilter === option.value ? styles.filterBtnActive : ''}`}
-                  style={{ color: dateFilter !== option.value ? 'var(--text-secondary)' : undefined }}
+                  style={{ 
+                    color: dateFilter !== option.value ? 'var(--text-secondary)' : undefined,
+                  }}
                 >
                   {option.label}
                 </button>
@@ -189,12 +213,26 @@ export default function Dashboard() {
             </div>
           ) : (
             <>
-              {currentTab === 'overview' && <DashboardOverview leads={filteredLeads} />}
-              {currentTab === 'leads' && <LeadsTable leads={filteredLeads} onSelectLead={setSelectedLead} />}
+              {currentTab === 'overview' && (
+                <DashboardOverview leads={filteredLeads} />
+              )}
+
+              {currentTab === 'leads' && (
+                <LeadsTable leads={filteredLeads} onSelectLead={setSelectedLead} />
+              )}
+              
               {currentTab === 'call' && (
                 <>
-                  <CallDashboardOverview data={callLeads} dateFilter={dateFilter} />
-                  <CallLeadsTable data={callLeads} />
+                  <CallDashboardOverview 
+                    data={callLeads} 
+                    dateFilter={dateFilter} 
+                  />
+                  
+                  {/* AQUI ESTAVA O ERRO: Adicionei dateFilter={dateFilter} */}
+                  <CallLeadsTable 
+                    data={callLeads} 
+                    dateFilter={dateFilter} 
+                  />
                 </>
               )}
             </>

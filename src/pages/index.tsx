@@ -1,93 +1,209 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import Cookies from 'js-cookie';
-import { Lock, ArrowRight, AlertCircle } from 'lucide-react';
-import Head from 'next/head';
-import styles from './Login.module.css';
+import { supabase } from '@/lib/supabaseClient';
+import { Lead } from '@/types/leads';
+import { CallLead } from '@/types/callLeads';
+import styles from './page.module.css';
 
-export default function Login() {
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+// Componentes
+import LeadsTable from '@/components/LeadsTable';
+import CallLeadsTable from '@/components/CallLeadsTable';
+import LeadModal from '@/components/LeadModal';
+import Navbar from '@/components/Navbar';
+import DashboardOverview from '@/components/DashboardOverview';
+import CallDashboardOverview from '@/components/CallDashboardOverview';
+
+// Utils
+import { isSameDay, subDays, isAfter } from 'date-fns';
+import { Wifi, WifiOff } from 'lucide-react';
+
+export default function Dashboard() {
   const router = useRouter();
+  
+  // --- ESTADOS DE DADOS ---
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [callLeads, setCallLeads] = useState<CallLead[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  
+  // --- ESTADOS DE NAVEGAÇÃO E FILTROS ---
+  const [currentTab, setCurrentTab] = useState<'overview' | 'leads' | 'call'>('overview');
+  const [dateFilter, setDateFilter] = useState('7days'); 
+  
+  // --- ESTADO DE CONEXÃO ---
+  const [isConnected, setIsConnected] = useState(false);
 
+  // 1. VERIFICAÇÃO DE SEGURANÇA (Auth)
   useEffect(() => {
     const token = Cookies.get('santa_auth');
-    if (token === 'logado') {
-      router.push('/dashboard');
+    if (token !== 'logado') {
+      router.push('/');
     }
   }, [router]);
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(''); // Limpa erro anterior
+  // 2. BUSCA DE DADOS E REALTIME
+  useEffect(() => {
+    const token = Cookies.get('santa_auth');
+    if (token !== 'logado') return;
 
-    // 1. Pega a senha do arquivo .env
-    const envPassword = process.env.NEXT_PUBLIC_LOGIN_PASSWORD;
+    fetchLeads();
+    fetchCallLeads();
 
-    // TRAVA DE SEGURANÇA 1: Se a variável não carregou, bloqueia tudo.
-    if (!envPassword) {
-      setError('ERRO CRÍTICO: Senha não configurada no servidor (.env).');
-      return;
-    }
+    const channelLeads = supabase
+      .channel('realtime-leads')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'WPP-UNIVERSO_RP-LEADS' },
+        (payload) => handleRealtimeChange(payload, setLeads)
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') setIsConnected(true);
+        if (status === 'CLOSED' || status === 'CHANNEL_ERROR') setIsConnected(false);
+      });
 
-    // TRAVA DE SEGURANÇA 2: Não aceita campo vazio
-    if (!password || password.trim() === '') {
-      setError('Digite a senha.');
-      return;
-    }
+    const channelCall = supabase
+      .channel('realtime-call')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'CALL-UNIVESO-RP-LEADS' },
+        (payload) => handleRealtimeCallChange(payload)
+      )
+      .subscribe();
 
-    // COMPARAÇÃO
-    if (password === envPassword) {
-      Cookies.set('santa_auth', 'logado', { expires: 1 });
-      router.push('/dashboard');
-    } else {
-      setError('Senha incorreta.');
-      // IMPORTANTE: NÃO limpamos mais o setPassword('') aqui para evitar o bug
-    }
+    return () => { 
+      supabase.removeChannel(channelLeads); 
+      supabase.removeChannel(channelCall);
+    };
+  }, []);
+
+  // --- HANDLERS DE REALTIME ---
+  const handleRealtimeChange = (payload: any, setFn: React.Dispatch<React.SetStateAction<any[]>>) => {
+    const newRecord = payload.new;
+    const oldRecord = payload.old;
+
+    if (payload.eventType === 'INSERT') setFn((prev) => [newRecord, ...prev]);
+    else if (payload.eventType === 'UPDATE') setFn((prev) => prev.map((item) => (item.id === newRecord.id ? newRecord : item)));
+    else if (payload.eventType === 'DELETE') setFn((prev) => prev.filter((item) => item.id !== oldRecord.id));
   };
 
+  const handleRealtimeCallChange = (payload: any) => {
+    const newRecord = payload.new as CallLead;
+    const oldRecord = payload.old as CallLead;
+
+    setCallLeads((prev) => {
+      if (payload.eventType === 'INSERT') return [newRecord, ...prev];
+      if (payload.eventType === 'UPDATE') return prev.map(item => item.ID === newRecord.ID ? newRecord : item);
+      if (payload.eventType === 'DELETE') return prev.filter(item => item.ID !== oldRecord.ID);
+      return prev;
+    });
+  };
+
+  // --- FUNÇÕES DE BUSCA ---
+  async function fetchLeads() {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.from('WPP-UNIVERSO_RP-LEADS').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      if (data) setLeads(data);
+    } catch (error) { console.error('Erro leads:', error); } finally { setLoading(false); }
+  }
+
+  async function fetchCallLeads() {
+    try {
+      const { data, error } = await supabase.from('CALL-UNIVESO-RP-LEADS').select('*').order('ID', { ascending: false });
+      if (error) throw error;
+      if (data) setCallLeads(data as CallLead[]);
+    } catch (error) { console.error('Erro call leads:', error); }
+  }
+
+  // --- FILTROS ---
+  const filteredLeads = useMemo(() => {
+    const today = new Date();
+    return leads.filter(lead => {
+      const leadDate = new Date(lead.created_at);
+      if (dateFilter === 'today') return isSameDay(leadDate, today);
+      if (dateFilter === 'yesterday') return isSameDay(leadDate, subDays(today, 1));
+      if (dateFilter === '7days') return isAfter(leadDate, subDays(today, 7));
+      if (dateFilter === '30days') return isAfter(leadDate, subDays(today, 30));
+      return true;
+    });
+  }, [leads, dateFilter]);
+
+  const filterOptions = [
+    { label: 'HOJE', value: 'today' },
+    { label: 'ONTEM', value: 'yesterday' },
+    { label: '7 DIAS', value: '7days' },
+    { label: '30 DIAS', value: '30days' },
+    { label: 'LIFETIME', value: 'lifetime' },
+  ];
+
   return (
-    <div className={styles.container}>
-      <Head>
-        <title>Acesso Restrito | SantaMetrics</title>
-      </Head>
+    // [CORREÇÃO AQUI] Removi o 'background: #f9fafb'. Agora ele usa a variável do global css.
+    <div style={{ minHeight: '100vh', transition: 'background-color 0.3s ease' }}>
+      <Navbar currentTab={currentTab} onTabChange={setCurrentTab} />
 
-      <div className={styles.loginCard}>
-        <div className={styles.iconWrapper}>
-          <Lock size={40} strokeWidth={1.5} />
-        </div>
-
-        <h1 className={styles.title}>
-          SantaMetrics
-        </h1>
-        <p className={styles.subtitle}>
-          Área restrita. Digite sua credencial mestra para acessar o painel.
-        </p>
-
-        <form onSubmit={handleLogin} className={styles.form}>
-          <div className={styles.inputGroup}>
-            <label className={styles.inputLabel}>Senha de Acesso</label>
-            <input
-              type="password"
-              placeholder="••••••••••••"
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value);
-                setError('');
-              }}
-              className={`${styles.inputField} ${error ? styles.inputError : ''}`}
-            />
-            {error && (
-              <span className={styles.errorMessage}>
-                <AlertCircle size={16} /> {error}
-              </span>
-            )}
+      <div className={styles.container}>
+        <div className={styles.pageHeader}>
+          <div>
+            <h1 className={styles.title} style={{ color: 'var(--text-primary)' }}>
+              {currentTab === 'overview' && 'Visão Geral'}
+              {currentTab === 'leads' && 'Gerenciamento de Leads'}
+              {currentTab === 'call' && 'Call Center & Engajamento'}
+            </h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '0.5rem' }}>
+              <p className={styles.subtitle} style={{ margin: 0, color: 'var(--text-secondary)' }}>
+                Dados em tempo real
+              </p>
+              <div className={styles.liveBadge} style={{ 
+                background: isConnected ? 'rgba(22, 163, 74, 0.15)' : 'rgba(220, 38, 38, 0.15)',
+                color: isConnected ? '#22c55e' : '#ef4444',
+                border: isConnected ? '1px solid rgba(22, 163, 74, 0.2)' : '1px solid rgba(220, 38, 38, 0.2)'
+              }}>
+                {isConnected ? <Wifi size={12} strokeWidth={3} /> : <WifiOff size={12} />}
+                <span>{isConnected ? 'LIVE' : 'OFFLINE'}</span>
+              </div>
+            </div>
           </div>
 
-          <button type="submit" className={styles.submitBtn}>
-            Acessar Painel <ArrowRight size={20} />
-          </button>
-        </form>
+          <div className={styles.actions}>
+            <div className={styles.filterGroup} style={{ background: 'var(--bg-card)', borderColor: 'var(--border-color)' }}>
+              {filterOptions.map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => setDateFilter(option.value)}
+                  className={`${styles.filterBtn} ${dateFilter === option.value ? styles.filterBtnActive : ''}`}
+                  style={{ color: dateFilter !== option.value ? 'var(--text-secondary)' : undefined }}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <main className={styles.content}>
+          {loading && leads.length === 0 ? (
+            <div className={styles.loading} style={{ color: 'var(--text-secondary)' }}>
+              Conectando ao banco de dados... 🛰️
+            </div>
+          ) : (
+            <>
+              {currentTab === 'overview' && <DashboardOverview leads={filteredLeads} />}
+              {currentTab === 'leads' && <LeadsTable leads={filteredLeads} onSelectLead={setSelectedLead} />}
+              {currentTab === 'call' && (
+                <>
+                  <CallDashboardOverview data={callLeads} dateFilter={dateFilter} />
+                  <CallLeadsTable data={callLeads} />
+                </>
+              )}
+            </>
+          )}
+        </main>
+
+        {selectedLead && (
+          <LeadModal lead={selectedLead} onClose={() => setSelectedLead(null)} />
+        )}
       </div>
     </div>
   );

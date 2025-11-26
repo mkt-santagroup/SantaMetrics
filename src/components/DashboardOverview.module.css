@@ -17,30 +17,28 @@
   margin-bottom: 2rem;
 }
 
-/* O NOVO ESTILO DO CARD (Igual a referência) */
+/* O NOVO ESTILO DO CARD (Adaptado para Dark Mode) */
 .card {
-  background: white;
-  padding: 2rem; /* Mais espaçamento interno */
-  border-radius: 24px; /* Bem arredondado */
-  border: none; /* Sem borda dura */
-  /* Sombra suave e difusa "estilo Apple/Moderno" */
-  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.06), 0 10px 20px -5px rgba(0, 0, 0, 0.02);
+  background: var(--bg-card); /* Era white */
+  padding: 2rem; 
+  border-radius: 24px; 
+  border: 1px solid var(--border-color); /* Borda sutil */
+  box-shadow: 0 20px 40px -10px var(--shadow-color), 0 10px 20px -5px var(--shadow-color);
   display: flex;
-  flex-direction: column; /* Ícone em cima, texto embaixo para ficar mais limpo */
+  flex-direction: column; 
   align-items: flex-start;
   gap: 1rem;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: transform 0.2s, box-shadow 0.2s, background-color 0.3s ease;
 }
 
 .card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 25px 50px -12px var(--shadow-color);
 }
 
 .cardIcon {
-  /* Removemos os fundos coloridos aqui */
   background: transparent !important; 
-  color: #000 !important; /* Ícone preto puro */
+  color: var(--text-primary) !important; /* Ícone segue a cor do texto */
   padding: 0;
   display: flex;
   align-items: center;
@@ -55,7 +53,7 @@
 
 .cardLabel {
   font-size: 0.75rem;
-  color: #888; /* Cinza um pouco mais claro para contraste */
+  color: var(--text-secondary); /* Cinza adaptável */
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -63,16 +61,16 @@
 }
 
 .cardValue {
-  font-size: 2.25rem; /* Número maior */
+  font-size: 2.25rem; 
   font-weight: 800;
-  color: #000; /* Preto puro */
+  color: var(--text-primary); /* Preto no light, Branco no dark */
   line-height: 1;
   margin: 0;
 }
 
 .subValue {
   font-size: 0.9rem;
-  color: #666;
+  color: var(--text-secondary);
   font-weight: 500;
   margin-left: 8px;
 }
@@ -90,19 +88,20 @@
   }
 }
 
-/* Aplica o mesmo estilo dos cards aos containers dos gráficos */
+/* Container dos gráficos */
 .chartContainer {
-  background: white;
+  background: var(--bg-card); /* Era white */
   padding: 2rem;
-  border-radius: 24px; /* Bem arredondado */
-  border: none;
-  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.06), 0 10px 20px -5px rgba(0, 0, 0, 0.02);
+  border-radius: 24px; 
+  border: 1px solid var(--border-color);
+  box-shadow: 0 20px 40px -10px var(--shadow-color), 0 10px 20px -5px var(--shadow-color);
+  transition: background-color 0.3s ease;
 }
 
 .chartContainer h3 {
   margin: 0 0 2rem 0;
   font-size: 1.1rem;
-  color: #000;
+  color: var(--text-primary); /* Título do gráfico */
   font-weight: 700;
 }
 
@@ -126,24 +125,24 @@
 
 .stageName {
   font-weight: 600;
-  color: #000;
+  color: var(--text-primary);
 }
 
 .stageCount {
-  color: #666;
+  color: var(--text-secondary);
   font-weight: 500;
 }
 
 .progressBarBg {
   width: 100%;
   height: 8px;
-  background-color: #f0f0f0; /* Cinza mais claro */
+  background-color: var(--bg-hover); /* Fundo da barra mais suave */
   border-radius: 99px;
   overflow: hidden;
 }
 
 .progressBarFill {
   height: 100%;
-  background-color: #000; /* Preto */
+  background-color: var(--accent-color); /* Preto no light, Branco no dark */
   border-radius: 99px;
 }

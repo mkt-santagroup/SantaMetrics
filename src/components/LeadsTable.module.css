@@ -1,14 +1,80 @@
 .tableContainer {
-  background: white;
-  border-radius: 24px; /* Acompanha o estilo dos cards */
-  /* Sombra Premium */
-  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.06), 0 10px 20px -5px rgba(0, 0, 0, 0.02);
+  background: var(--bg-card);
+  border-radius: 24px;
+  box-shadow: 0 20px 40px -10px var(--shadow-color);
   border: none;
   overflow: hidden;
   margin-top: 1.5rem;
   font-family: 'Montserrat', sans-serif;
+  transition: background-color 0.3s ease;
 }
 
+/* --- TOOLBAR (Filtros e Busca) --- */
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.searchWrapper {
+  display: flex;
+  align-items: center;
+  background: var(--bg-hover);
+  padding: 0.5rem 1rem;
+  border-radius: 12px;
+  width: 300px;
+  border: 1px solid transparent;
+  transition: all 0.2s;
+}
+
+.searchWrapper:focus-within {
+  background: var(--bg-card);
+  border-color: var(--text-primary);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.searchInput {
+  border: none;
+  background: transparent;
+  outline: none;
+  margin-left: 0.5rem;
+  width: 100%;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+
+.filterTabs {
+  display: flex;
+  gap: 0.5rem;
+  background: var(--bg-hover);
+  padding: 4px;
+  border-radius: 12px;
+}
+
+.filterTab {
+  border: none;
+  background: transparent;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: 'Montserrat', sans-serif;
+}
+
+.filterTabActive {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  box-shadow: 0 2px 4px var(--shadow-color);
+}
+
+/* --- TABELA --- */
 .table {
   width: 100%;
   border-collapse: separate;
@@ -18,23 +84,24 @@
 
 /* CABEÇALHO */
 .table th {
-  background-color: #fff; /* Fundo branco puro */
-  color: #888;
+  background-color: var(--bg-card);
+  color: var(--text-secondary);
   font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.1em;
   padding: 1.5rem 2rem;
-  border-bottom: 1px solid #f0f0f0; /* Divisória muito sutil */
+  border-bottom: 1px solid var(--border-color);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* CÉLULAS */
 .table td {
   padding: 1.25rem 2rem;
-  border-bottom: 1px solid #f9f9f9;
+  border-bottom: 1px solid var(--border-color);
   vertical-align: middle;
   font-size: 0.95rem;
-  color: #000;
+  color: var(--text-primary);
   transition: background 0.2s;
 }
 
@@ -49,26 +116,27 @@
 }
 
 .clickableRow:hover td {
-  background-color: #fafafa; /* Cinza super claro no hover */
+  background-color: var(--bg-hover);
 }
 
 /* ESTILOS ESPECÍFICOS */
 .dateCell {
-  color: #666;
+  /* AQUI ESTAVA O PROBLEMA: antes devia ser #000 ou #666 */
+  color: var(--text-primary); /* <--- AGORA VAI FICAR BRANCO NO DARK */
   font-weight: 500;
   white-space: nowrap;
 }
 
 .phoneCell {
-  font-family: 'Montserrat', monospace; /* Mantem a fonte mas com numeros alinhados */
-  color: #444;
+  font-family: 'Montserrat', monospace;
+  color: var(--text-secondary); /* Esse aqui já estava certo, fica cinza */
   font-weight: 600;
   font-size: 0.9rem;
 }
 
 .nameCell {
   font-weight: 700;
-  color: #000;
+  color: var(--text-primary);
   font-size: 1rem;
 }
 
@@ -79,7 +147,7 @@
 }
 
 .unknown {
-  color: #ccc;
+  color: var(--text-tertiary);
   font-style: italic;
   font-weight: 400;
 }
@@ -88,11 +156,11 @@
   color: #ef4444;
 }
 
-/* BADGE DA ETAPA (Estilo Pílula Clean) */
+/* BADGES (Etapa / PC) */
 .badge {
   display: inline-block;
-  background: #f5f5f5;
-  color: #000;
+  background: var(--bg-hover);
+  color: var(--text-primary);
   padding: 6px 14px;
   border-radius: 99px;
   font-size: 0.75rem;
@@ -101,7 +169,6 @@
   letter-spacing: 0.05em;
 }
 
-/* BADGE PC */
 .colCenter {
   text-align: center;
   width: 120px;
@@ -112,13 +179,13 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  background-color: #000; /* Preto forte */
-  color: #fff;
+  background-color: var(--accent-color);
+  color: var(--accent-text);
   padding: 6px 14px;
   border-radius: 99px;
   font-size: 0.75rem;
   font-weight: 600;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.2); /* Sombrainha no badge */
+  box-shadow: 0 4px 10px rgba(0,0,0,0.2);
 }
 
 .pcBadgeNeutral {
@@ -126,8 +193,8 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  background-color: #f5f5f5;
-  color: #888;
+  background-color: var(--bg-hover);
+  color: var(--text-secondary);
   padding: 6px 14px;
   border-radius: 99px;
   font-size: 0.75rem;
@@ -135,7 +202,7 @@
 }
 
 .pcBadgeInactive {
-  color: #eee;
+  color: var(--text-tertiary);
   font-weight: 700;
 }
 
@@ -149,17 +216,63 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #888;
+  color: var(--text-secondary);
   font-size: 0.85rem;
 }
 
 .emptyObs {
-  color: #eee;
+  color: var(--text-tertiary);
 }
 
 .emptyState {
   text-align: center;
   padding: 4rem;
-  color: #aaa;
+  color: var(--text-tertiary);
   font-weight: 500;
+}
+
+/* --- PAGINAÇÃO --- */
+.pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem 2rem;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-card);
+}
+
+.pageInfo {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.pageButtons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.pageBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  cursor: pointer;
+  color: var(--text-primary);
+  transition: all 0.2s;
+}
+
+.pageBtn:hover:not(:disabled) {
+  border-color: var(--text-primary);
+  color: var(--text-primary);
+}
+
+.pageBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--bg-hover);
 }

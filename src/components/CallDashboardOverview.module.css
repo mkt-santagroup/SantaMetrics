@@ -1,0 +1,156 @@
+.container {
+  animation: fadeIn 0.4s ease-out;
+  font-family: 'Montserrat', sans-serif;
+  margin-bottom: 2rem;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* --- GRID DE CARDS --- */
+.gridCards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.card {
+  background: var(--bg-card);
+  padding: 1.5rem;
+  border-radius: 20px;
+  box-shadow: 0 10px 30px -10px var(--shadow-color);
+  border: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  transition: transform 0.2s, background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.card:hover {
+  transform: translateY(-3px);
+}
+
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.iconBox {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cardLabel {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.cardValue {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.cardSub {
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+/* --- ÁREA DOS GRÁFICOS --- */
+.chartsGrid {
+  display: grid;
+  grid-template-columns: 1fr 2fr; /* Pie menor, Bar maior */
+  gap: 1.5rem;
+}
+
+.chartContainer {
+  background: var(--bg-card);
+  padding: 1.5rem;
+  border-radius: 20px;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 10px 30px -10px var(--shadow-color);
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.chartTitle {
+  margin: 0 0 1.5rem 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* Adaptação para o Dashboard de Leads (reutilizando classes) */
+.cardIcon {
+  background: transparent !important; 
+  color: var(--text-primary) !important; 
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cardContent {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* Lista de Gargalos (Dashboard Leads) */
+.stageList {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.stageRow {
+  width: 100%;
+}
+
+.stageInfo {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.stageName {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.stageCount {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.progressBarBg {
+  width: 100%;
+  height: 8px;
+  background-color: var(--bg-hover);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.progressBarFill {
+  height: 100%;
+  background-color: var(--accent-color); /* Preto no light, Branco no dark */
+  border-radius: 99px;
+}
+
+@media (max-width: 1000px) {
+  .chartsGrid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,5 +1,44 @@
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap');
 
-body {
+:root {
+  /* CLARO */
+  --bg-page: #f9fafb;
+  --bg-card: #ffffff;
+  --bg-hover: #f3f4f6;
+  --text-primary: #111827;
+  --text-secondary: #6b7280;
+  --text-tertiary: #9ca3af;
+  --border-color: #e5e7eb;
+  --shadow-color: rgba(0, 0, 0, 0.06);
+  --accent-color: #000000;
+  --accent-text: #ffffff;
+}
+
+[data-theme='dark'] {
+  /* ESCURO (Aqui que define o PRETO) */
+  --bg-page: #0a0a0a;       /* <--- ESSE É O FUNDO DA PÁGINA */
+  --bg-card: #171717;       /* CARD UM POUCO MAIS CLARO */
+  --bg-hover: #262626;
+  --text-primary: #ededed;
+  --text-secondary: #a3a3a3;
+  --text-tertiary: #525252;
+  --border-color: #262626;
+  --shadow-color: rgba(0, 0, 0, 0.5);
+  --accent-color: #ffffff;
+  --accent-text: #000000;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100vh;
+  background-color: var(--bg-page); /* <--- ISSO APLICA O PRETO */
+  color: var(--text-primary);
   font-family: 'Montserrat', sans-serif !important;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+button {
+  font-family: 'Montserrat', sans-serif;
 }

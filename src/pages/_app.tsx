@@ -1,14 +1,15 @@
 import '@/styles/globals.css';
 import type { AppProps } from 'next/app';
 import Head from 'next/head';
+import { ThemeProvider } from '@/context/ThemeContext'; // <--- IMPORTANTE: O contexto que criamos
 
 export default function App({ Component, pageProps }: AppProps) {
-  // Substitua pelo seu link do Railway (sem a barra no final)
-  // Exemplo: https://santametrics.up.railway.app
-  const baseUrl = 'https://SEU-DOMINIO-DO-RAILWAY.app'; 
+  // Substitua pelo seu link do Railway ou Vercel (sem a barra no final)
+  const baseUrl = 'https://santametrics.up.railway.app'; 
 
   return (
-    <>
+    // O ThemeProvider PRECISA estar aqui, abraçando tudo
+    <ThemeProvider>
       <Head>
         {/* --- TÍTULO E ÍCONE --- */}
         <title>SantaMetrics</title>
@@ -37,6 +38,6 @@ export default function App({ Component, pageProps }: AppProps) {
       </Head>
       
       <Component {...pageProps} />
-    </>
+    </ThemeProvider>
   );
 }

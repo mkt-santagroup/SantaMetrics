@@ -4,19 +4,26 @@ import styles from './DashboardOverview.module.css';
 import { AlertTriangle, Users, CheckCircle, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { getStageName } from '@/utils/stageMap'; // <--- IMPORT NOVO
+import { getStageName } from '@/utils/stageMap';
+import { useTheme } from '@/context/ThemeContext'; // <--- IMPORTAR O TEMA
 
 interface DashboardOverviewProps {
   leads: Lead[];
 }
 
 export default function DashboardOverview({ leads }: DashboardOverviewProps) {
+  const { theme } = useTheme(); // <--- USAR O HOOK
+
+  // Define cores baseadas no tema para o Recharts (que não aceita var() CSS nativamente fácil)
+  const barColor = theme === 'dark' ? '#ffffff' : '#000000';
+  const axisColor = theme === 'dark' ? '#9ca3af' : '#888';
+  const gridColor = theme === 'dark' ? '#333' : '#f0f0f0';
+  const tooltipBg = theme === 'dark' ? '#1f2937' : '#fff';
+  const tooltipText = theme === 'dark' ? '#fff' : '#000';
+
   // 1. Lógica de KPIs
   const totalLeads = leads.length;
-  
-  // Mantemos a lógica "8" para contagem interna, mas poderíamos usar o nome também
   const leadsConcluidos = leads.filter(l => l.etapa && l.etapa.includes('8')).length;
-  
   const leadsEmAndamento = leads.filter(l => {
     const etapa = (l.etapa || '').toUpperCase();
     return etapa !== 'NOVO' && !etapa.includes('8') && etapa !== '';
@@ -24,12 +31,9 @@ export default function DashboardOverview({ leads }: DashboardOverviewProps) {
   
   const conversaoRate = totalLeads > 0 ? ((leadsConcluidos / totalLeads) * 100).toFixed(1) : 0;
 
-  // 2. Lógica de Gargalo COM NOMES BONITOS
+  // 2. Lógica de Gargalo
   const leadsPorEtapa = leads.reduce((acc, lead) => {
-    // Pega o nome amigável para agrupar
     const friendlyName = getStageName(lead.etapa); 
-    
-    // Se não for conclusão (Etapa 8/Vinculando conta), conta como gargalo
     if (!lead.etapa?.includes('8')) {
        acc[friendlyName] = (acc[friendlyName] || 0) + 1;
     }
@@ -42,7 +46,7 @@ export default function DashboardOverview({ leads }: DashboardOverviewProps) {
 
   const maiorGargalo = dataEtapas.length > 0 ? dataEtapas[0].name : 'Nenhum';
 
-  // 3. Gráfico (Sem mudanças)
+  // 3. Gráfico
   const leadsPorDia = leads.reduce((acc, lead) => {
     const dataFormatada = format(new Date(lead.created_at), 'dd/MM', { locale: ptBR });
     acc[dataFormatada] = (acc[dataFormatada] || 0) + 1;
@@ -64,7 +68,6 @@ export default function DashboardOverview({ leads }: DashboardOverviewProps) {
     <div className={styles.container}>
       {/* GRID COM 4 CARDS */}
       <div className={styles.gridCards}>
-        {/* ... (Cards iguais ao anterior, sem mudanças no JSX) ... */}
         
         <div className={styles.card}>
           <CardIcon icon={Users} />
@@ -96,7 +99,6 @@ export default function DashboardOverview({ leads }: DashboardOverviewProps) {
           <CardIcon icon={AlertTriangle} />
           <div className={styles.cardContent}>
             <span className={styles.cardLabel}>Maior Gargalo</span>
-            {/* Aqui ajustei o tamanho da fonte caso o nome seja muito grande */}
             <h4 className={styles.cardValue} style={{ fontSize: '1.25rem' }}>{maiorGargalo}</h4>
           </div>
         </div>
@@ -108,17 +110,39 @@ export default function DashboardOverview({ leads }: DashboardOverviewProps) {
           <div style={{ width: '100%', height: 300 }}>
             <ResponsiveContainer>
               <BarChart data={dataGrafico}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#888', fontSize: 12}} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{fill: '#888', fontSize: 12}} />
-                <Tooltip cursor={{fill: '#f9fafb'}} contentStyle={{fontFamily: 'Montserrat', borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)'}} />
-                <Bar dataKey="leads" fill="#000000" radius={[6, 6, 0, 0]} barSize={40} />
+                {/* Cores dinâmicas aplicadas aqui */}
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridColor} />
+                <XAxis 
+                  dataKey="name" 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{fill: axisColor, fontSize: 12}} 
+                  dy={10} 
+                />
+                <YAxis 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{fill: axisColor, fontSize: 12}} 
+                />
+                <Tooltip 
+                  cursor={{fill: theme === 'dark' ? '#333' : '#f9fafb'}} 
+                  contentStyle={{
+                    fontFamily: 'Montserrat', 
+                    borderRadius: '12px', 
+                    border: 'none', 
+                    boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)',
+                    backgroundColor: tooltipBg,
+                    color: tooltipText
+                  }} 
+                />
+                {/* A cor da barra muda conforme o tema */}
+                <Bar dataKey="leads" fill={barColor} radius={[6, 6, 0, 0]} barSize={40} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* LISTA DE GARGALOS COM NOMES BONITOS */}
+        {/* LISTA DE GARGALOS */}
         <div className={styles.chartContainer}>
           <h3>Etapas com mais gargalos</h3>
           <div className={styles.stageList}>
@@ -136,7 +160,7 @@ export default function DashboardOverview({ leads }: DashboardOverviewProps) {
                 </div>
               </div>
             ))}
-            {dataEtapas.length === 0 && <p style={{color: '#888', fontSize: '0.9rem'}}>Sem gargalos registrados.</p>}
+            {dataEtapas.length === 0 && <p style={{color: 'var(--text-secondary)', fontSize: '0.9rem'}}>Sem gargalos registrados.</p>}
           </div>
         </div>
       </div>

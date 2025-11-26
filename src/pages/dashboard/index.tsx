@@ -1,76 +1,117 @@
 import { useEffect, useState, useMemo } from 'react';
-import { useRouter } from 'next/router'; // <--- Para redirecionamento
-import Cookies from 'js-cookie';         // <--- Para checar o login
+import { useRouter } from 'next/router';
+import Cookies from 'js-cookie';
 import { supabase } from '@/lib/supabaseClient';
 import { Lead } from '@/types/leads';
+import { CallLead } from '@/types/callLeads';
 import styles from './page.module.css';
+
+// Componentes
 import LeadsTable from '@/components/LeadsTable';
+import CallLeadsTable from '@/components/CallLeadsTable';
 import LeadModal from '@/components/LeadModal';
 import Navbar from '@/components/Navbar';
 import DashboardOverview from '@/components/DashboardOverview';
+import CallDashboardOverview from '@/components/CallDashboardOverview';
+
+// Utils
 import { isSameDay, subDays, isAfter } from 'date-fns';
 import { Wifi, WifiOff } from 'lucide-react';
 
 export default function Dashboard() {
   const router = useRouter();
   
+  // --- ESTADOS DE DADOS ---
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [callLeads, setCallLeads] = useState<CallLead[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   
-  // Navegação e Filtros
-  const [currentTab, setCurrentTab] = useState<'overview' | 'leads'>('overview');
+  // --- ESTADOS DE NAVEGAÇÃO E FILTROS ---
+  const [currentTab, setCurrentTab] = useState<'overview' | 'leads' | 'call'>('overview');
   const [dateFilter, setDateFilter] = useState('7days'); 
   
-  // Status Realtime
+  // --- ESTADO DE CONEXÃO ---
   const [isConnected, setIsConnected] = useState(false);
 
-  // 1. VERIFICAÇÃO DE SEGURANÇA (Proteção de Rota)
+  // 1. VERIFICAÇÃO DE SEGURANÇA (Auth)
   useEffect(() => {
     const token = Cookies.get('santa_auth');
-    // Se não tiver o cookie ou o valor estiver errado, chuta pro login
     if (token !== 'logado') {
       router.push('/');
     }
   }, [router]);
 
-  // 2. Busca de Dados e Realtime
+  // 2. BUSCA DE DADOS E REALTIME
   useEffect(() => {
-    // Só busca se estiver logado (para evitar chamada desnecessária enquanto redireciona)
     const token = Cookies.get('santa_auth');
     if (token !== 'logado') return;
 
+    // Carrega dados iniciais
     fetchLeads();
+    fetchCallLeads();
 
-    const channel = supabase
+    // Canal 1: Tabela de Leads (WhatsApp/Funil)
+    const channelLeads = supabase
       .channel('realtime-leads')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'WPP-UNIVERSO_RP-LEADS' },
-        (payload) => { handleRealtimeChange(payload); }
+        (payload) => handleRealtimeChange(payload, setLeads)
       )
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') setIsConnected(true);
         if (status === 'CLOSED' || status === 'CHANNEL_ERROR') setIsConnected(false);
       });
 
-    return () => { supabase.removeChannel(channel); };
+    // Canal 2: Tabela de Call Center (Engajamento)
+    const channelCall = supabase
+      .channel('realtime-call')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'CALL-UNIVESO-RP-LEADS' },
+        (payload) => handleRealtimeCallChange(payload)
+      )
+      .subscribe();
+
+    return () => { 
+      supabase.removeChannel(channelLeads); 
+      supabase.removeChannel(channelCall);
+    };
   }, []);
 
-  const handleRealtimeChange = (payload: any) => {
-    const newLead = payload.new as Lead;
-    const oldLead = payload.old as Lead;
+  // --- HANDLERS DE REALTIME ---
+
+  // Genérico para WPP-LEADS (usa campo 'id')
+  const handleRealtimeChange = (payload: any, setFn: React.Dispatch<React.SetStateAction<any[]>>) => {
+    const newRecord = payload.new;
+    const oldRecord = payload.old;
 
     if (payload.eventType === 'INSERT') {
-      setLeads((prev) => [newLead, ...prev]);
+      setFn((prev) => [newRecord, ...prev]);
     } 
     else if (payload.eventType === 'UPDATE') {
-      setLeads((prev) => prev.map((lead) => (lead.id === newLead.id ? newLead : lead)));
+      setFn((prev) => prev.map((item) => (item.id === newRecord.id ? newRecord : item)));
     } 
     else if (payload.eventType === 'DELETE') {
-      setLeads((prev) => prev.filter((lead) => lead.id !== oldLead.id));
+      setFn((prev) => prev.filter((item) => item.id !== oldRecord.id));
     }
   };
+
+  // Específico para CALL-LEADS (usa campo 'ID' maiúsculo)
+  const handleRealtimeCallChange = (payload: any) => {
+    const newRecord = payload.new as CallLead;
+    const oldRecord = payload.old as CallLead;
+
+    setCallLeads((prev) => {
+      if (payload.eventType === 'INSERT') return [newRecord, ...prev];
+      if (payload.eventType === 'UPDATE') return prev.map(item => item.ID === newRecord.ID ? newRecord : item);
+      if (payload.eventType === 'DELETE') return prev.filter(item => item.ID !== oldRecord.ID);
+      return prev;
+    });
+  };
+
+  // --- FUNÇÕES DE BUSCA ---
 
   async function fetchLeads() {
     setLoading(true);
@@ -88,6 +129,24 @@ export default function Dashboard() {
     }
   }
 
+  async function fetchCallLeads() {
+    try {
+      const { data, error } = await supabase
+        .from('CALL-UNIVESO-RP-LEADS')
+        .select('*')
+        // Ordenamos pelo ID ou created_at desc para pegar os mais recentes
+        .order('ID', { ascending: false }); 
+      
+      if (error) throw error;
+      if (data) setCallLeads(data as CallLead[]);
+    } catch (error) {
+      console.error('Erro ao buscar call leads:', error);
+    }
+  }
+
+  // --- LÓGICA DE FILTROS (PARA TABELA DE LEADS GERAL) ---
+  // Nota: A tabela de Call Center faz a filtragem internamente com base no dateFilter passado via prop
+  
   const filteredLeads = useMemo(() => {
     const today = new Date();
     return leads.filter(lead => {
@@ -100,6 +159,7 @@ export default function Dashboard() {
     });
   }, [leads, dateFilter]);
 
+  // Opções dos botões de filtro
   const filterOptions = [
     { label: 'HOJE', value: 'today' },
     { label: 'ONTEM', value: 'yesterday' },
@@ -109,22 +169,27 @@ export default function Dashboard() {
   ];
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f9fafb' }}>
+    <div className={styles.mainWrapper}>
       <Navbar currentTab={currentTab} onTabChange={setCurrentTab} />
 
       <div className={styles.container}>
+        
+        {/* --- CABEÇALHO DA PÁGINA --- */}
         <div className={styles.pageHeader}>
           <div>
             <h1 className={styles.title}>
-              {currentTab === 'overview' ? 'Visão Geral' : 'Gerenciamento de Leads'}
+              {currentTab === 'overview' && 'Visão Geral'}
+              {currentTab === 'leads' && 'Gerenciamento de Leads'}
+              {currentTab === 'call' && 'Call Center & Engajamento'}
             </h1>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '0.5rem' }}>
               <p className={styles.subtitle} style={{ margin: 0 }}>
                 Dados em tempo real
               </p>
               <div className={styles.liveBadge} style={{ 
-                background: isConnected ? '#dcfce7' : '#fee2e2',
-                color: isConnected ? '#16a34a' : '#dc2626',
+                background: isConnected ? 'rgba(22, 163, 74, 0.15)' : 'rgba(220, 38, 38, 0.15)',
+                color: isConnected ? '#22c55e' : '#ef4444',
+                border: isConnected ? '1px solid rgba(22, 163, 74, 0.2)' : '1px solid rgba(220, 38, 38, 0.2)'
               }}>
                 {isConnected ? <Wifi size={12} strokeWidth={3} /> : <WifiOff size={12} />}
                 <span>{isConnected ? 'LIVE' : 'OFFLINE'}</span>
@@ -132,6 +197,7 @@ export default function Dashboard() {
             </div>
           </div>
 
+          {/* FILTROS DE DATA (Visíveis em todas as abas) */}
           <div className={styles.actions}>
             <div className={styles.filterGroup}>
               {filterOptions.map((option) => (
@@ -147,17 +213,43 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* --- CONTEÚDO PRINCIPAL --- */}
         <main className={styles.content}>
           {loading && leads.length === 0 ? (
             <div className={styles.loading}>Conectando ao banco de dados... 🛰️</div>
           ) : (
             <>
-              {currentTab === 'overview' && <DashboardOverview leads={filteredLeads} />}
-              {currentTab === 'leads' && <LeadsTable leads={filteredLeads} onSelectLead={setSelectedLead} />}
+              {/* ABA 1: DASHBOARD GERAL */}
+              {currentTab === 'overview' && (
+                <DashboardOverview leads={filteredLeads} />
+              )}
+
+              {/* ABA 2: TABELA DE LEADS (WPP) */}
+              {currentTab === 'leads' && (
+                <LeadsTable leads={filteredLeads} onSelectLead={setSelectedLead} />
+              )}
+              
+              {/* ABA 3: CALL CENTER (DASHBOARD + TABELA) */}
+              {currentTab === 'call' && (
+                <>
+                  {/* Dashboard recebe o filtro para calcular os KPIs baseado na data */}
+                  <CallDashboardOverview 
+                    data={callLeads} 
+                    dateFilter={dateFilter} 
+                  />
+                  
+                  {/* Tabela recebe o filtro para mostrar apenas os registros da data selecionada */}
+                  <CallLeadsTable 
+                    data={callLeads} 
+                    dateFilter={dateFilter} 
+                  />
+                </>
+              )}
             </>
           )}
         </main>
 
+        {/* --- MODAL DE DETALHES (Apenas para leads WPP) --- */}
         {selectedLead && (
           <LeadModal lead={selectedLead} onClose={() => setSelectedLead(null)} />
         )}

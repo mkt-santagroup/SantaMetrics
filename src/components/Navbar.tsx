@@ -1,16 +1,17 @@
-// CORREÇÃO AQUI: Import relativo (./) pois estão na mesma pasta agora
 import styles from './Navbar.module.css'; 
-import { LayoutDashboard, Users, LogOut } from 'lucide-react';
+import { LayoutDashboard, Users, LogOut, PhoneCall, Sun, Moon } from 'lucide-react';
 import { useRouter } from 'next/router';
 import Cookies from 'js-cookie';
+import { useTheme } from '@/context/ThemeContext'; // <--- IMPORTAR
 
 interface NavbarProps {
-  currentTab: 'overview' | 'leads';
-  onTabChange: (tab: 'overview' | 'leads') => void;
+  currentTab: 'overview' | 'leads' | 'call';
+  onTabChange: (tab: 'overview' | 'leads' | 'call') => void;
 }
 
 export default function Navbar({ currentTab, onTabChange }: NavbarProps) {
   const router = useRouter();
+  const { theme, toggleTheme } = useTheme(); // <--- USAR HOOK
 
   const handleLogout = () => {
     Cookies.remove('santa_auth');
@@ -25,6 +26,7 @@ export default function Navbar({ currentTab, onTabChange }: NavbarProps) {
         </div>
         
         <div className={styles.tabs}>
+          {/* ... botões das abas (iguais) ... */}
           <button 
             className={`${styles.tab} ${currentTab === 'overview' ? styles.active : ''}`}
             onClick={() => onTabChange('overview')}
@@ -39,12 +41,31 @@ export default function Navbar({ currentTab, onTabChange }: NavbarProps) {
             <Users size={18} />
             Leads
           </button>
+          <button 
+            className={`${styles.tab} ${currentTab === 'call' ? styles.active : ''}`}
+            onClick={() => onTabChange('call')}
+          >
+            <PhoneCall size={18} />
+            Call Center
+          </button>
         </div>
       </div>
 
-      <button onClick={handleLogout} className={styles.logoutBtn} title="Sair do sistema">
-        <LogOut size={20} />
-      </button>
+      <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+        {/* BOTÃO DE TEMA */}
+        <button onClick={toggleTheme} className={styles.iconBtn} title="Alternar Tema">
+          {theme === 'light' ? (
+            <Moon size={20} className={styles.moonIcon} />
+          ) : (
+            <Sun size={20} className={styles.sunIcon} />
+          )}
+        </button>
+
+        {/* BOTÃO SAIR */}
+        <button onClick={handleLogout} className={`${styles.iconBtn} ${styles.logoutBtn}`} title="Sair">
+          <LogOut size={20} />
+        </button>
+      </div>
     </nav>
   );
 }

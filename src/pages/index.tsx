@@ -4,7 +4,7 @@ import Cookies from 'js-cookie';
 import { supabase } from '@/lib/supabaseClient';
 import { Lead } from '@/types/leads';
 import { CallLead } from '@/types/callLeads';
-import styles from './dashboard/page.module.css'; // Mantenha o CSS do dashboard
+import styles from './dashboard/page.module.css'; // Mantendo o CSS do dashboard
 
 // Componentes
 import LeadsTable from '@/components/LeadsTable';
@@ -13,10 +13,11 @@ import LeadModal from '@/components/LeadModal';
 import Navbar from '@/components/Navbar';
 import DashboardOverview from '@/components/DashboardOverview';
 import CallDashboardOverview from '@/components/CallDashboardOverview';
+import TriggerCallModal from '@/components/TriggerCallModal'; // <--- IMPORT NOVO
 
 // Utils
 import { isSameDay, subDays, isAfter } from 'date-fns';
-import { Wifi, WifiOff } from 'lucide-react';
+import { Wifi, WifiOff, PhoneOutgoing } from 'lucide-react'; // <--- IMPORT DO ÍCONE
 
 export default function Dashboard() {
   const router = useRouter();
@@ -28,11 +29,13 @@ export default function Dashboard() {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   
   // --- NAVEGAÇÃO E FILTROS ---
-  // Mudei o padrão para 'leads', já que fundimos as telas
   const [currentTab, setCurrentTab] = useState<'leads' | 'call'>('leads');
   const [dateFilter, setDateFilter] = useState('7days'); 
   
   const [isConnected, setIsConnected] = useState(false);
+
+  // --- NOVO ESTADO DO MODAL DE DISPARO ---
+  const [showTriggerModal, setShowTriggerModal] = useState(false);
 
   // 1. AUTH CHECK
   useEffect(() => {
@@ -177,7 +180,36 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className={styles.actions}>
+          <div className={styles.actions} style={{ gap: '1rem', alignItems: 'center' }}>
+            
+            {/* --- NOVO BOTÃO DE DISPARO (Aparece apenas na aba Call) --- */}
+            {currentTab === 'call' && (
+              <button 
+                onClick={() => setShowTriggerModal(true)}
+                style={{
+                  backgroundColor: '#000', // Destaque preto (ou use var(--accent-color))
+                  color: '#fff',
+                  border: 'none',
+                  padding: '10px 20px',
+                  borderRadius: '99px',
+                  fontWeight: 700,
+                  fontSize: '0.8rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  cursor: 'pointer',
+                  fontFamily: 'Montserrat, sans-serif',
+                  boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
+                  transition: 'transform 0.2s',
+                }}
+                onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+                onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
+              >
+                <PhoneOutgoing size={16} />
+                Disparar Ligações
+              </button>
+            )}
+
             <div className={styles.filterGroup} style={{ background: 'var(--bg-card)', borderColor: 'var(--border-color)' }}>
               {filterOptions.map((option) => (
                 <button
@@ -231,9 +263,19 @@ export default function Dashboard() {
           )}
         </main>
 
+        {/* MODAL DE DETALHES DO LEAD */}
         {selectedLead && (
           <LeadModal lead={selectedLead} onClose={() => setSelectedLead(null)} />
         )}
+
+        {/* NOVO MODAL DE DISPARO DE LIGAÇÕES */}
+        {showTriggerModal && (
+          <TriggerCallModal 
+            data={callLeads} // Passa todos os leads, o modal filtra os de hoje
+            onClose={() => setShowTriggerModal(false)} 
+          />
+        )}
+
       </div>
     </div>
   );

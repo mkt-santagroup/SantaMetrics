@@ -1,14 +1,18 @@
 import { useState } from 'react';
 import { useRouter } from 'next/router';
 import Cookies from 'js-cookie';
-// AJUSTE AQUI: Importando com letras minúsculas para garantir compatibilidade
+// Import do CSS (mantendo o padrão minúsculo que corrigimos)
 import styles from './login.module.css'; 
 import { Lock, ArrowRight } from 'lucide-react';
 import Head from 'next/head';
 
 export default function Login() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
+  
+  // --- CONFIGURAÇÃO ---
+  // Agora lê a variável de ambiente que começa com NEXT_PUBLIC_
+  const SENHA_CORRETA = process.env.NEXT_PUBLIC_LOGIN_PASSWORD; 
+  
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -18,17 +22,21 @@ export default function Login() {
     setError('');
     setLoading(true);
 
-    // Simulação de Login simples
-    if (password) {
-      // Define o cookie que o index.tsx verifica
-      Cookies.set('santa_auth', 'logado', { expires: 7 }); 
-      
-      // Redireciona para o dashboard
-      router.push('/');
-    } else {
-      setError('Por favor, preencha a senha.');
-      setLoading(false);
-    }
+    // Simula um pequeno delay para parecer processamento real
+    setTimeout(() => {
+      // Verifica se a senha digitada bate com a do .env
+      // O trim() remove espaços acidentais antes ou depois
+      if (password === SENHA_CORRETA) {
+        // Sucesso: Define o cookie e redireciona
+        Cookies.set('santa_auth', 'logado', { expires: 7 }); 
+        router.push('/');
+      } else {
+        // Erro: Senha incorreta
+        setError('Senha incorreta. Tente novamente.');
+        setLoading(false);
+        setPassword(''); // Limpa o campo
+      }
+    }, 800);
   };
 
   return (
@@ -42,40 +50,33 @@ export default function Login() {
           <Lock size={32} />
         </div>
 
-        <h1 className={styles.title}>Bem-vindo de volta</h1>
+        <h1 className={styles.title}>Acesso Restrito</h1>
         <p className={styles.subtitle}>
-          Insira suas credenciais para acessar<br />
-          o painel SantaMetrics.
+          Insira sua senha de administrador<br />
+          para acessar o painel.
         </p>
 
         <form onSubmit={handleLogin} className={styles.form}>
+          
           <div className={styles.inputGroup}>
-            <span className={styles.inputLabel}>Usuário</span>
-            <input 
-              type="text" 
-              className={`${styles.inputField} ${error ? styles.inputError : ''}`}
-              placeholder="seu@email.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </div>
-
-          <div className={styles.inputGroup}>
-            <span className={styles.inputLabel}>Senha</span>
+            <span className={styles.inputLabel}>SENHA DE ACESSO</span>
             <input 
               type="password" 
               className={`${styles.inputField} ${error ? styles.inputError : ''}`}
-              placeholder="••••••••"
+              placeholder="Digite a senha..."
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                setError(''); 
+              }}
             />
             {error && (
               <span className={styles.errorMessage}>{error}</span>
             )}
           </div>
 
-          <button type="submit" className={styles.submitBtn} disabled={loading}>
-            {loading ? 'Entrando...' : 'Acessar Painel'}
+          <button type="submit" className={styles.submitBtn} disabled={loading || !password}>
+            {loading ? 'Verificando...' : 'Entrar'}
             {!loading && <ArrowRight size={20} />}
           </button>
         </form>

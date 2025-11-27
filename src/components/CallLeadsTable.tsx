@@ -1,72 +1,90 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react'; // Adicionado useRef
 import { CallLead } from '@/types/callLeads';
-import { format, isSameDay, subDays, isAfter, parseISO } from 'date-fns';
+import { format, isSameDay, subDays, isAfter } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import styles from './LeadsTable.module.css';
 import { 
   CheckCircle, XCircle, Clock, Search, 
-  ChevronLeft, ChevronRight, Filter 
+  ChevronLeft, ChevronRight, Filter, Phone, PhoneOff, AlertCircle, ChevronUp, ChevronDown 
 } from 'lucide-react';
 
 interface CallLeadsTableProps {
   data: CallLead[];
-  dateFilter: string; // <--- RECEBE O FILTRO DE DATA DO PAI
+  dateFilter: string;
 }
+
+// --- MAPA DE TRADUÇÃO E CORES ---
+const STATUS_CONFIG: Record<string, { label: string, color: string, bg: string, icon: any }> = {
+  'ANSWERED': { label: 'Atendida', color: '#16a34a', bg: 'rgba(22, 163, 74, 0.1)', icon: Phone },
+  'NO ANSWER': { label: 'Sem Resposta', color: '#ca8a04', bg: 'rgba(202, 138, 4, 0.1)', icon: PhoneOff },
+  'BUSY': { label: 'Ocupado', color: '#ea580c', bg: 'rgba(234, 88, 12, 0.1)', icon: PhoneOff },
+  'FAILED': { label: 'Falhou', color: '#dc2626', bg: 'rgba(220, 38, 38, 0.1)', icon: AlertCircle },
+  'CONGESTION': { label: 'Congestionado', color: '#dc2626', bg: 'rgba(220, 38, 38, 0.1)', icon: AlertCircle },
+  'NO_ROUTE': { label: 'Sem Rota', color: '#6b7280', bg: 'rgba(107, 114, 128, 0.1)', icon: AlertCircle },
+  'ROUTE_UNAVAILABLE': { label: 'Rota Indisp.', color: '#6b7280', bg: 'rgba(107, 114, 128, 0.1)', icon: AlertCircle },
+  'DUPLICATED': { label: 'Duplicado', color: '#6b7280', bg: 'rgba(107, 114, 128, 0.1)', icon: AlertCircle },
+};
 
 export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps) {
   
-  // --- ESTADOS ---
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'online' | 'offline'>('all');
-  
-  // Paginação
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10); // <--- NOVO ESTADO PARA SELETOR
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  
+  // Estado para o Dropdown Customizado
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // --- 1. LÓGICA DE FILTRAGEM (Data + Texto + Status) ---
+  // Fecha o dropdown se clicar fora
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  // --- LÓGICA DE FILTRAGEM ---
   const filteredData = useMemo(() => {
     const today = new Date();
 
     return data.filter((item) => {
-      // A. FILTRO DE DATA (usando created_at ou Last_login como fallback)
-      // Se quiser filtrar por "data de criação do lead", use created_at.
-      // Se quiser por "atividade", use Last_login. Vou usar created_at conforme pedido.
       const dateToCheck = item.created_at ? new Date(item.created_at) : null;
-      
       let matchesDate = true;
+      
       if (dateToCheck) {
         if (dateFilter === 'today') matchesDate = isSameDay(dateToCheck, today);
         else if (dateFilter === 'yesterday') matchesDate = isSameDay(dateToCheck, subDays(today, 1));
         else if (dateFilter === '7days') matchesDate = isAfter(dateToCheck, subDays(today, 7));
         else if (dateFilter === '30days') matchesDate = isAfter(dateToCheck, subDays(today, 30));
       } 
-      // Se for 'lifetime' ou sem data, passa direto (ou ajusta conforme regra de negócio)
       if (dateFilter !== 'lifetime' && !dateToCheck) matchesDate = false; 
-
       if (!matchesDate) return false;
 
-      // B. FILTRO DE TEXTO
       const searchLower = searchTerm.toLowerCase();
       const matchesSearch = 
         item.ID.toString().includes(searchLower) ||
         (item.nome && item.nome.toLowerCase().includes(searchLower)) ||
         (item.whatsapp && item.whatsapp.includes(searchLower));
 
-      // C. FILTRO DE STATUS
       let matchesStatus = true;
       if (statusFilter === 'online') matchesStatus = item.login_no_dia === true;
       else if (statusFilter === 'offline') matchesStatus = item.login_no_dia === false || item.login_no_dia === null;
 
       return matchesSearch && matchesStatus;
     });
-  }, [data, searchTerm, statusFilter, dateFilter]); // Adicionado dateFilter na dependência
+  }, [data, searchTerm, statusFilter, dateFilter]);
 
   // Resetar página ao filtrar
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, dateFilter, itemsPerPage]);
 
-  // --- 2. PAGINAÇÃO ---
   const totalPages = Math.ceil(filteredData.length / itemsPerPage);
   
   const paginatedData = useMemo(() => {
@@ -74,8 +92,6 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
     return filteredData.slice(startIndex, startIndex + itemsPerPage);
   }, [filteredData, currentPage, itemsPerPage]);
 
-
-  // --- FORMATADORES ---
   const formatData = (dateStr: string | null) => {
     if (!dateStr) return '-';
     return format(new Date(dateStr), "dd/MM HH:mm", { locale: ptBR });
@@ -95,13 +111,45 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
     return <span style={{color: 'var(--text-tertiary)'}}>-</span>;
   };
 
+  // Componente de Status
+  const StatusBadge = ({ status }: { status: string | null }) => {
+    if (!status) return <span style={{color: 'var(--text-tertiary)', fontSize: '0.85rem'}}>-</span>;
+    
+    const config = STATUS_CONFIG[status] || { 
+      label: status, 
+      color: 'var(--text-primary)', 
+      bg: 'var(--bg-hover)', 
+      icon: null 
+    };
+
+    const Icon = config.icon;
+
+    return (
+      <span style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '6px',
+        padding: '4px 10px',
+        borderRadius: '6px',
+        backgroundColor: config.bg,
+        color: config.color,
+        fontSize: '0.75rem',
+        fontWeight: 700,
+        textTransform: 'uppercase',
+        letterSpacing: '0.05em',
+        border: `1px solid ${config.color}20` 
+      }}>
+        {Icon && <Icon size={12} strokeWidth={3} />}
+        {config.label}
+      </span>
+    );
+  };
+
   return (
     <div className={styles.tableContainer}>
       
-      {/* BARRA DE FERRAMENTAS */}
       <div style={{ padding: '1.5rem 2rem 0 2rem' }}>
         <div className={styles.toolbar}>
-          
           <div className={styles.searchWrapper}>
             <Search size={18} color="var(--text-tertiary)" />
             <input 
@@ -135,11 +183,9 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
               Offline Hoje
             </button>
           </div>
-
         </div>
       </div>
 
-      {/* TABELA */}
       <table className={styles.table}>
         <thead>
           <tr>
@@ -147,8 +193,8 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
             <th>Nome / WhatsApp</th>
             <th>Tempo Jogo</th>
             <th>Login Hoje?</th>
-            <th>Call 1</th>
-            <th>Call 2</th>
+            <th>1ª Ligação</th>
+            <th>2ª Ligação</th>
             <th>Último Login</th>
           </tr>
         </thead>
@@ -171,8 +217,8 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
                 </div>
               </td>
               <td><BooleanBadge value={item.login_no_dia} /></td>
-              <td><BooleanBadge value={item.call_1} /></td>
-              <td><BooleanBadge value={item.call_2} /></td>
+              <td><StatusBadge status={item.call1_status} /></td>
+              <td><StatusBadge status={item.call2_status} /></td>
               <td className={styles.dateCell} style={{fontSize:'0.85rem'}}>
                 {formatData(item.Last_login)}
               </td>
@@ -192,37 +238,38 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
         </tbody>
       </table>
 
-      {/* PAGINAÇÃO E SELETOR DE QTD */}
       {filteredData.length > 0 && (
         <div className={styles.pagination}>
-          
           <div style={{display:'flex', alignItems:'center', gap:'1rem'}}>
             <span className={styles.pageInfo}>
               Mostrando <b>{paginatedData.length}</b> de <b>{filteredData.length}</b>
             </span>
             
-            {/* SELETOR DE ITENS POR PÁGINA (NOVO) */}
-            <select 
-              value={itemsPerPage}
-              onChange={(e) => setItemsPerPage(Number(e.target.value))}
-              style={{
-                padding: '6px 12px',
-                borderRadius: '8px',
-                border: '1px solid var(--border-color)',
-                background: 'var(--bg-page)',
-                color: 'var(--text-primary)',
-                fontSize: '0.85rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                outline: 'none'
-              }}
-            >
-              <option value={10}>10 por pág</option>
-              <option value={20}>20 por pág</option>
-              <option value={30}>30 por pág</option>
-              <option value={50}>50 por pág</option>
-              <option value={100}>100 por pág</option>
-            </select>
+            {/* DROPDOWN CUSTOMIZADO */}
+            <div className={styles.customSelectContainer} ref={dropdownRef}>
+              <button 
+                className={styles.customSelectTrigger} 
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              >
+                {itemsPerPage} por pág
+                {isDropdownOpen ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+              </button>
+              
+              {isDropdownOpen && (
+                <div className={styles.customSelectDropdown}>
+                  {[10, 20, 30, 50, 100].map(val => (
+                    <div 
+                      key={val}
+                      className={`${styles.customOption} ${itemsPerPage === val ? styles.customOptionSelected : ''}`}
+                      onClick={() => { setItemsPerPage(val); setIsDropdownOpen(false); }}
+                    >
+                      {val} por pág
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
           </div>
           
           <div className={styles.pageButtons}>
@@ -233,11 +280,9 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
             >
               <ChevronLeft size={18} />
             </button>
-            
             <span style={{ display: 'flex', alignItems: 'center', padding: '0 10px', fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>
               Página {currentPage} de {totalPages}
             </span>
-
             <button 
               className={styles.pageBtn} 
               onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}

@@ -71,7 +71,7 @@
 /* --- ÁREA DOS GRÁFICOS --- */
 .chartsGrid {
   display: grid;
-  grid-template-columns: 1fr 2fr; /* Pie menor, Bar maior */
+  grid-template-columns: 1fr 2fr;
   gap: 1.5rem;
 }
 
@@ -91,62 +91,64 @@
   color: var(--text-primary);
 }
 
-/* Adaptação para o Dashboard de Leads (reutilizando classes) */
-.cardIcon {
-  background: transparent !important; 
-  color: var(--text-primary) !important; 
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/* --- TOOLTIP CUSTOMIZADO (ATUALIZADO) --- */
+.customTooltip {
+  background-color: #171717; /* Fundo preto/cinza bem escuro sólido */
+  border: 1px solid #333;
+  border-radius: 16px;
+  padding: 1.25rem;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+  min-width: 220px;
+  z-index: 50;
+  position: relative;
 }
 
-.cardContent {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+.tooltipTitle {
+  margin: 0 0 1rem 0;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #fff;
+  border-bottom: 1px solid #333;
+  padding-bottom: 0.75rem;
+  letter-spacing: -0.02em;
 }
 
-/* Lista de Gargalos (Dashboard Leads) */
-.stageList {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.stageRow {
-  width: 100%;
-}
-
-.stageInfo {
+.tooltipRow {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 0.75rem;
-  font-size: 0.9rem;
-}
-
-.stageName {
+  align-items: center;
+  margin-bottom: 0.5rem;
+  font-size: 0.85rem;
   font-weight: 600;
-  color: var(--text-primary);
+  color: #a3a3a3; /* Cinza claro */
 }
 
-.stageCount {
-  color: var(--text-secondary);
-  font-weight: 500;
+.tooltipValue {
+  font-weight: 700;
+  color: #fff;
+  font-size: 0.95rem;
 }
 
-.progressBarBg {
+.tooltipDivider {
   width: 100%;
-  height: 8px;
-  background-color: var(--bg-hover);
-  border-radius: 99px;
-  overflow: hidden;
+  height: 1px;
+  background-color: #333;
+  margin: 1rem 0;
 }
 
-.progressBarFill {
-  height: 100%;
-  background-color: var(--accent-color); /* Preto no light, Branco no dark */
-  border-radius: 99px;
+.tooltipFooter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.tooltipTotalValue {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #fff;
 }
 
 @media (max-width: 1000px) {

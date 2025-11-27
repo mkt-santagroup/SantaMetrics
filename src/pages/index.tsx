@@ -4,7 +4,7 @@ import Cookies from 'js-cookie';
 import { supabase } from '@/lib/supabaseClient';
 import { Lead } from '@/types/leads';
 import { CallLead } from '@/types/callLeads';
-import styles from './dashboard/page.module.css'; // ATENÇÃO: Verifique se o caminho do CSS está certo baseada na pasta que você está
+import styles from './dashboard/page.module.css'; // Mantenha o CSS do dashboard
 
 // Componentes
 import LeadsTable from '@/components/LeadsTable';
@@ -27,25 +27,22 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   
-  // --- ESTADOS DE NAVEGAÇÃO E FILTROS ---
-  const [currentTab, setCurrentTab] = useState<'overview' | 'leads' | 'call'>('overview');
+  // --- NAVEGAÇÃO E FILTROS ---
+  // Mudei o padrão para 'leads', já que fundimos as telas
+  const [currentTab, setCurrentTab] = useState<'leads' | 'call'>('leads');
   const [dateFilter, setDateFilter] = useState('7days'); 
   
-  // --- ESTADO DE CONEXÃO ---
   const [isConnected, setIsConnected] = useState(false);
 
-  // 1. VERIFICAÇÃO DE SEGURANÇA (Auth)
+  // 1. AUTH CHECK
   useEffect(() => {
     const token = Cookies.get('santa_auth');
     if (token !== 'logado') {
-      // Se estiver na raiz e não for logado, talvez queira redirecionar para login
-      // Se este arquivo JÁ É a home logada, a lógica de login deve estar em outro lugar ou aqui deve ter um check diferente.
-      // Mantendo a lógica padrão:
-      router.push('/login'); // Ou para onde for sua tela de login
+      router.push('/login');
     }
   }, [router]);
 
-  // 2. BUSCA DE DADOS E REALTIME
+  // 2. FETCH DATA & REALTIME
   useEffect(() => {
     const token = Cookies.get('santa_auth');
     if (token !== 'logado') return;
@@ -53,6 +50,7 @@ export default function Dashboard() {
     fetchLeads();
     fetchCallLeads();
 
+    // Canal Leads
     const channelLeads = supabase
       .channel('realtime-leads')
       .on(
@@ -65,6 +63,7 @@ export default function Dashboard() {
         if (status === 'CLOSED' || status === 'CHANNEL_ERROR') setIsConnected(false);
       });
 
+    // Canal Call Center
     const channelCall = supabase
       .channel('realtime-call')
       .on(
@@ -80,26 +79,17 @@ export default function Dashboard() {
     };
   }, []);
 
-  // --- HANDLERS DE REALTIME ---
   const handleRealtimeChange = (payload: any, setFn: React.Dispatch<React.SetStateAction<any[]>>) => {
     const newRecord = payload.new;
     const oldRecord = payload.old;
-
-    if (payload.eventType === 'INSERT') {
-      setFn((prev) => [newRecord, ...prev]);
-    } 
-    else if (payload.eventType === 'UPDATE') {
-      setFn((prev) => prev.map((item) => (item.id === newRecord.id ? newRecord : item)));
-    } 
-    else if (payload.eventType === 'DELETE') {
-      setFn((prev) => prev.filter((item) => item.id !== oldRecord.id));
-    }
+    if (payload.eventType === 'INSERT') setFn((prev) => [newRecord, ...prev]);
+    else if (payload.eventType === 'UPDATE') setFn((prev) => prev.map((item) => (item.id === newRecord.id ? newRecord : item)));
+    else if (payload.eventType === 'DELETE') setFn((prev) => prev.filter((item) => item.id !== oldRecord.id));
   };
 
   const handleRealtimeCallChange = (payload: any) => {
     const newRecord = payload.new as CallLead;
     const oldRecord = payload.old as CallLead;
-
     setCallLeads((prev) => {
       if (payload.eventType === 'INSERT') return [newRecord, ...prev];
       if (payload.eventType === 'UPDATE') return prev.map(item => item.ID === newRecord.ID ? newRecord : item);
@@ -108,7 +98,6 @@ export default function Dashboard() {
     });
   };
 
-  // --- FUNÇÕES DE BUSCA ---
   async function fetchLeads() {
     setLoading(true);
     try {
@@ -131,7 +120,6 @@ export default function Dashboard() {
         .from('CALL-UNIVESO-RP-LEADS')
         .select('*')
         .order('ID', { ascending: false }); 
-      
       if (error) throw error;
       if (data) setCallLeads(data as CallLead[]);
     } catch (error) {
@@ -139,7 +127,7 @@ export default function Dashboard() {
     }
   }
 
-  // --- FILTROS ---
+  // Filtros
   const filteredLeads = useMemo(() => {
     const today = new Date();
     return leads.filter(lead => {
@@ -162,6 +150,7 @@ export default function Dashboard() {
 
   return (
     <div className={styles.mainWrapper}>
+      {/* Navbar recebe a nova tipagem */}
       <Navbar currentTab={currentTab} onTabChange={setCurrentTab} />
 
       <div className={styles.container}>
@@ -169,9 +158,9 @@ export default function Dashboard() {
         <div className={styles.pageHeader}>
           <div>
             <h1 className={styles.title} style={{ color: 'var(--text-primary)' }}>
-              {currentTab === 'overview' && 'Visão Geral'}
-              {currentTab === 'leads' && 'Gerenciamento de Leads'}
-              {currentTab === 'call' && 'Call Center & Engajamento'}
+              {/* Ajustei os títulos para refletir a tela atual */}
+              {currentTab === 'leads' && 'Gerenciamento de Whatsapp'}
+              {currentTab === 'call' && 'Gerenciamento de Ligações'}
             </h1>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '0.5rem' }}>
               <p className={styles.subtitle} style={{ margin: 0, color: 'var(--text-secondary)' }}>
@@ -213,14 +202,18 @@ export default function Dashboard() {
             </div>
           ) : (
             <>
-              {currentTab === 'overview' && (
-                <DashboardOverview leads={filteredLeads} />
-              )}
-
+              {/* --- ABA LEADS (Agora contém o Dashboard EM CIMA) --- */}
               {currentTab === 'leads' && (
-                <LeadsTable leads={filteredLeads} onSelectLead={setSelectedLead} />
+                <>
+                  {/* Dashboard Cards e Gráficos */}
+                  <DashboardOverview leads={filteredLeads} />
+                  
+                  {/* Tabela de Leads logo abaixo */}
+                  <LeadsTable leads={filteredLeads} onSelectLead={setSelectedLead} />
+                </>
               )}
               
+              {/* --- ABA CALL CENTER --- */}
               {currentTab === 'call' && (
                 <>
                   <CallDashboardOverview 
@@ -228,7 +221,6 @@ export default function Dashboard() {
                     dateFilter={dateFilter} 
                   />
                   
-                  {/* AQUI ESTAVA O ERRO: Adicionei dateFilter={dateFilter} */}
                   <CallLeadsTable 
                     data={callLeads} 
                     dateFilter={dateFilter} 

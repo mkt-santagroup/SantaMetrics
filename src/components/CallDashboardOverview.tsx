@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { CallLead } from '@/types/callLeads';
 import styles from './CallDashboardOverview.module.css';
 import { 
-  UserCheck, UserX, Phone, PhoneCall
+  UserCheck, UserX, Phone, PhoneCall, PhoneOutgoing 
 } from 'lucide-react';
 import { 
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend 
@@ -18,19 +18,20 @@ interface CallDashboardOverviewProps {
 export default function CallDashboardOverview({ data, dateFilter }: CallDashboardOverviewProps) {
   const { theme } = useTheme();
 
-  const barColor = theme === 'dark' ? '#ffffff' : '#000000';
   const axisColor = theme === 'dark' ? '#9ca3af' : '#888';
   const gridColor = theme === 'dark' ? '#333' : '#f0f0f0';
-  const tooltipBg = theme === 'dark' ? '#1f2937' : '#fff';
+  const tooltipBg = theme === 'dark' ? '#1f2937' : '#fff'; 
   const tooltipText = theme === 'dark' ? '#fff' : '#000';
 
-  // --- FILTRO DE DATA CORRIGIDO (USANDO created_at) ---
+  const colorAtendida = '#10b981'; 
+  const colorNaoAtendida = theme === 'dark' ? '#374151' : '#e5e7eb';
+
+  // --- 1. FILTRO DE DATA ---
   const filteredData = useMemo(() => {
     const today = new Date();
     
     return data.filter(item => {
-      if (!item.created_at) return dateFilter === 'lifetime'; // Se não tem data, só mostra no lifetime
-      
+      if (!item.created_at) return dateFilter === 'lifetime'; 
       const itemDate = new Date(item.created_at);
 
       if (dateFilter === 'today') return isSameDay(itemDate, today);
@@ -41,28 +42,90 @@ export default function CallDashboardOverview({ data, dateFilter }: CallDashboar
     });
   }, [data, dateFilter]);
 
-  // ... resto da lógica de KPIs (igual) ...
+  // --- 2. CÁLCULOS GERAIS ---
   const total = filteredData.length;
   const logadosHoje = filteredData.filter(i => i.login_no_dia === true).length;
   const naoLogados = filteredData.filter(i => i.login_no_dia === false || i.login_no_dia === null).length;
-  const call1Feitas = filteredData.filter(i => i.call_1 === true).length;
-  const call2Feitas = filteredData.filter(i => i.call_2 === true).length;
-  const callPendentes = total - (filteredData.filter(i => i.call_1 === true || i.call_2 === true).length);
+  
+  // Sucessos (Atendidas)
+  const call1Sucesso = filteredData.filter(i => i.call_1 === true).length;
+  const call2Sucesso = filteredData.filter(i => i.call_2 === true).length;
 
+  // --- 3. NOVA LÓGICA DE TENTATIVAS ---
+  
+  // Grupo Call 1: Soma called + called2
+  const tentativasCall1 = filteredData.reduce((acc, curr) => {
+    let count = 0;
+    if (curr.called === true) count++;
+    if (curr.called2 === true) count++;
+    return acc + count;
+  }, 0);
+
+  // Grupo Call 2: Soma called3 + called4
+  const tentativasCall2 = filteredData.reduce((acc, curr) => {
+    let count = 0;
+    if (curr.called3 === true) count++;
+    if (curr.called4 === true) count++;
+    return acc + count;
+  }, 0);
+
+  // Total Geral
+  const totalCallsFeitas = tentativasCall1 + tentativasCall2;
+
+  // --- 4. DADOS GRÁFICOS ---
   const dataPizza = [
     { name: 'Online Hoje', value: logadosHoje, color: '#10b981' }, 
     { name: 'Offline', value: naoLogados, color: '#ef4444' },
   ];
 
+  // Gráfico de Barras com Agrupamento
   const dataBarra = [
-    { name: 'Call 1', atendidas: call1Feitas, pendentes: total - call1Feitas },
-    { name: 'Call 2', atendidas: call2Feitas, pendentes: total - call2Feitas },
+    { 
+      name: '1ª Ligação', // (Inclui called + called2)
+      Atendidas: call1Sucesso, 
+      NaoAtendidas: Math.max(0, tentativasCall1 - call1Sucesso), 
+      Tentativas: tentativasCall1
+    },
+    { 
+      name: '2ª Ligação', // (Inclui called3 + called4)
+      Atendidas: call2Sucesso, 
+      NaoAtendidas: Math.max(0, tentativasCall2 - call2Sucesso),
+      Tentativas: tentativasCall2
+    },
   ];
 
-  // ... return JSX (igual, usando filteredData) ...
-  // (Código de renderização igual ao anterior, omiti para brevidade,
-  //  o importante é que agora ele usa o filteredData baseado em created_at)
-  
+  // --- 5. COMPONENTE TOOLTIP CUSTOMIZADO ---
+  const CustomBarTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload; 
+      return (
+        <div className={styles.customTooltip}>
+          <div className={styles.tooltipTitle}>{data.name}</div>
+          
+          <div className={styles.tooltipRow}>
+            <span style={{color: '#10b981'}}>Atendidas:</span>
+            <span className={styles.tooltipValue}>{data.Atendidas}</span>
+          </div>
+          
+          <div className={styles.tooltipRow}>
+            <span style={{color: '#9ca3af'}}>Não Atendidas:</span>
+            <span className={styles.tooltipValue}>{data.NaoAtendidas}</span>
+          </div>
+
+          <div className={styles.tooltipDivider}></div>
+
+          <div className={styles.tooltipFooter}>
+            <span>Total tentativas:</span>
+            <span className={styles.tooltipTotalValue}>
+              {data.Tentativas}
+            </span>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
+
   const CardIcon = ({ icon: Icon, bg, color }: { icon: any, bg: string, color: string }) => (
     <div className={styles.iconBox} style={{background: bg, color: color}}>
       <Icon size={20} />
@@ -71,6 +134,7 @@ export default function CallDashboardOverview({ data, dateFilter }: CallDashboar
 
   return (
     <div className={styles.container}>
+      
       <div className={styles.gridCards}>
         <div className={styles.card}>
           <div className={styles.cardHeader}>
@@ -78,8 +142,11 @@ export default function CallDashboardOverview({ data, dateFilter }: CallDashboar
             <CardIcon icon={UserCheck} bg="#d1fae5" color="#059669" />
           </div>
           <div className={styles.cardValue}>{logadosHoje}</div>
-          <span className={styles.cardSub} style={{color: '#059669'}}>{total > 0 ? ((logadosHoje/total)*100).toFixed(0) : 0}% da base</span>
+          <span className={styles.cardSub} style={{color: '#059669'}}>
+            {total > 0 ? ((logadosHoje/total)*100).toFixed(0) : 0}% da base
+          </span>
         </div>
+
         <div className={styles.card}>
           <div className={styles.cardHeader}>
             <span className={styles.cardLabel}>Não Logaram</span>
@@ -88,55 +155,111 @@ export default function CallDashboardOverview({ data, dateFilter }: CallDashboar
           <div className={styles.cardValue}>{naoLogados}</div>
           <span className={styles.cardSub} style={{color: '#dc2626'}}>Atenção necessária</span>
         </div>
+
         <div className={styles.card}>
           <div className={styles.cardHeader}>
-            <span className={styles.cardLabel}>Call 1 Sucesso</span>
+            <span className={styles.cardLabel}>Total de Ligações</span>
+            <CardIcon icon={PhoneOutgoing} bg="#f3f4f6" color="#000" />
+          </div>
+          <div className={styles.cardValue}>{totalCallsFeitas}</div>
+          <span className={styles.cardSub} style={{color: 'var(--text-secondary)'}}>
+            Tentativas realizadas
+          </span>
+        </div>
+
+        <div className={styles.card}>
+          <div className={styles.cardHeader}>
+            <span className={styles.cardLabel}>1ª Ligação Atendida</span>
             <CardIcon icon={Phone} bg="#e0f2fe" color="#0284c7" />
           </div>
-          <div className={styles.cardValue}>{call1Feitas}</div>
+          <div className={styles.cardValue}>{call1Sucesso}</div>
           <span className={styles.cardSub} style={{color: 'var(--text-secondary)'}}>Primeiro contato</span>
         </div>
+
         <div className={styles.card}>
           <div className={styles.cardHeader}>
-            <span className={styles.cardLabel}>Call 2 Sucesso</span>
+            <span className={styles.cardLabel}>2ª Ligação Atendida</span>
             <CardIcon icon={PhoneCall} bg="var(--bg-hover)" color="var(--text-secondary)" />
           </div>
-          <div className={styles.cardValue}>{call2Feitas}</div>
+          <div className={styles.cardValue}>{call2Sucesso}</div>
           <span className={styles.cardSub} style={{color: 'var(--text-secondary)'}}>Recuperação</span>
         </div>
       </div>
 
       <div className={styles.chartsGrid}>
+        
         <div className={styles.chartContainer}>
           <h3 className={styles.chartTitle}>Status de Login (Hoje)</h3>
           <div style={{ width: '100%', height: 250 }}>
             <ResponsiveContainer>
               <PieChart>
-                <Pie data={dataPizza} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
-                  {dataPizza.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.color} />))}
+                <Pie 
+                  data={dataPizza} 
+                  innerRadius={60} 
+                  outerRadius={80} 
+                  paddingAngle={5} 
+                  dataKey="value"
+                  stroke="none"
+                >
+                  {dataPizza.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
                 </Pie>
-                <Tooltip contentStyle={{borderRadius:'12px', border:'none', boxShadow:'0 10px 25px rgba(0,0,0,0.1)', backgroundColor: tooltipBg, color: tooltipText}} />
+                <Tooltip 
+                  contentStyle={{
+                    borderRadius:'12px', 
+                    border:'none', 
+                    boxShadow:'0 10px 25px rgba(0,0,0,0.2)', 
+                    backgroundColor: tooltipBg, 
+                    color: tooltipText
+                  }} 
+                />
                 <Legend verticalAlign="bottom" height={36}/>
               </PieChart>
             </ResponsiveContainer>
           </div>
         </div>
+
         <div className={styles.chartContainer}>
           <h3 className={styles.chartTitle}>Performance de Ligações</h3>
           <div style={{ width: '100%', height: 250 }}>
             <ResponsiveContainer>
-              <BarChart data={dataBarra} layout="vertical">
+              <BarChart data={dataBarra} layout="vertical" barGap={4}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={gridColor} />
                 <XAxis type="number" hide />
-                <YAxis dataKey="name" type="category" tick={{fill: axisColor, fontSize:12}} width={60} />
-                <Tooltip cursor={{fill: 'transparent'}} contentStyle={{borderRadius:'12px', border:'none', boxShadow:'0 10px 25px rgba(0,0,0,0.1)', backgroundColor: tooltipBg, color: tooltipText}} />
-                <Legend />
-                <Bar dataKey="atendidas" name="Atendidas" stackId="a" fill={barColor} radius={[0, 4, 4, 0]} barSize={30} />
-                <Bar dataKey="pendentes" name="Pendentes" stackId="a" fill="#e5e7eb" radius={[0, 4, 4, 0]} barSize={30} />
+                <YAxis 
+                  dataKey="name" 
+                  type="category" 
+                  tick={{fill: axisColor, fontSize: 12, fontWeight: 600}} 
+                  width={80} 
+                  axisLine={false}
+                  tickLine={false}
+                />
+                
+                {/* TOOLTIP CUSTOMIZADO */}
+                <Tooltip cursor={{fill: 'transparent'}} content={<CustomBarTooltip />} />
+                
+                <Legend iconType="circle" />
+                <Bar 
+                  dataKey="Atendidas" 
+                  stackId="a" 
+                  fill={colorAtendida} 
+                  radius={[0, 0, 0, 0]} 
+                  barSize={32} 
+                />
+                <Bar 
+                  dataKey="NaoAtendidas" 
+                  name="Não Atendidas" 
+                  stackId="a" 
+                  fill={colorNaoAtendida} 
+                  radius={[0, 6, 6, 0]} 
+                  barSize={32} 
+                />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
+
       </div>
     </div>
   );

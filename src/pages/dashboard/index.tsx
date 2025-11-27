@@ -28,7 +28,8 @@ export default function Dashboard() {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   
   // --- ESTADOS DE NAVEGAÇÃO E FILTROS ---
-  const [currentTab, setCurrentTab] = useState<'overview' | 'leads' | 'call'>('overview');
+  // MUDANÇA: O padrão agora é 'leads' (que contém o dashboard)
+  const [currentTab, setCurrentTab] = useState<'leads' | 'call'>('leads');
   const [dateFilter, setDateFilter] = useState('7days'); 
   
   // --- ESTADO DE CONEXÃO ---
@@ -82,7 +83,6 @@ export default function Dashboard() {
 
   // --- HANDLERS DE REALTIME ---
 
-  // Genérico para WPP-LEADS (usa campo 'id')
   const handleRealtimeChange = (payload: any, setFn: React.Dispatch<React.SetStateAction<any[]>>) => {
     const newRecord = payload.new;
     const oldRecord = payload.old;
@@ -98,7 +98,6 @@ export default function Dashboard() {
     }
   };
 
-  // Específico para CALL-LEADS (usa campo 'ID' maiúsculo)
   const handleRealtimeCallChange = (payload: any) => {
     const newRecord = payload.new as CallLead;
     const oldRecord = payload.old as CallLead;
@@ -143,7 +142,7 @@ export default function Dashboard() {
     }
   }
 
-  // --- LÓGICA DE FILTROS (DATA - Para Dashboard Geral) ---
+  // --- LÓGICA DE FILTROS (DATA) ---
   const filteredLeads = useMemo(() => {
     const today = new Date();
     return leads.filter(lead => {
@@ -156,7 +155,6 @@ export default function Dashboard() {
     });
   }, [leads, dateFilter]);
 
-  // Opções dos botões de filtro
   const filterOptions = [
     { label: 'HOJE', value: 'today' },
     { label: 'ONTEM', value: 'yesterday' },
@@ -175,9 +173,8 @@ export default function Dashboard() {
         <div className={styles.pageHeader}>
           <div>
             <h1 className={styles.title} style={{ color: 'var(--text-primary)' }}>
-              {currentTab === 'overview' && 'Visão Geral'}
-              {currentTab === 'leads' && 'Gerenciamento de Leads'}
-              {currentTab === 'call' && 'Call Center & Engajamento'}
+              {currentTab === 'leads' && 'Gerenciamento de Whatsapp'}
+              {currentTab === 'call' && 'Gerenciamento de Ligações'}
             </h1>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '0.5rem' }}>
               <p className={styles.subtitle} style={{ margin: 0, color: 'var(--text-secondary)' }}>
@@ -194,7 +191,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* FILTROS DE DATA (Visíveis em todas as abas) */}
+          {/* FILTROS DE DATA */}
           <div className={styles.actions}>
             <div className={styles.filterGroup} style={{ background: 'var(--bg-card)', borderColor: 'var(--border-color)' }}>
               {filterOptions.map((option) => (
@@ -221,26 +218,25 @@ export default function Dashboard() {
             </div>
           ) : (
             <>
-              {/* ABA 1: DASHBOARD GERAL */}
-              {currentTab === 'overview' && (
-                <DashboardOverview leads={filteredLeads} />
-              )}
-
-              {/* ABA 2: TABELA DE LEADS (WPP) */}
+              {/* ABA 1: LEADS (DASHBOARD + TABELA JUNTOS) */}
               {currentTab === 'leads' && (
-                <LeadsTable leads={filteredLeads} onSelectLead={setSelectedLead} />
+                <>
+                  {/* Dashboard em cima */}
+                  <DashboardOverview leads={filteredLeads} />
+                  
+                  {/* Tabela embaixo */}
+                  <LeadsTable leads={filteredLeads} onSelectLead={setSelectedLead} />
+                </>
               )}
               
-              {/* ABA 3: CALL CENTER (DASHBOARD + TABELA) */}
+              {/* ABA 2: CALL CENTER (DASHBOARD + TABELA) */}
               {currentTab === 'call' && (
                 <>
-                  {/* CORREÇÃO: Passando o filtro de data para os dois componentes */}
                   <CallDashboardOverview 
                     data={callLeads} 
                     dateFilter={dateFilter} 
                   />
                   
-                  {/* AQUI ESTAVA O ERRO NO SEU BUILD: Agora tem dateFilter */}
                   <CallLeadsTable 
                     data={callLeads} 
                     dateFilter={dateFilter} 
@@ -251,7 +247,7 @@ export default function Dashboard() {
           )}
         </main>
 
-        {/* --- MODAL DE DETALHES (Apenas para leads WPP) --- */}
+        {/* --- MODAL DE DETALHES --- */}
         {selectedLead && (
           <LeadModal lead={selectedLead} onClose={() => setSelectedLead(null)} />
         )}

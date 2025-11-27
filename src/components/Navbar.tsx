@@ -1,17 +1,18 @@
 import styles from './Navbar.module.css'; 
-import { LayoutDashboard, Users, LogOut, PhoneCall, Sun, Moon } from 'lucide-react';
+import { Users, LogOut, PhoneCall, Sun, Moon } from 'lucide-react'; // Removi LayoutDashboard
 import { useRouter } from 'next/router';
 import Cookies from 'js-cookie';
-import { useTheme } from '@/context/ThemeContext'; // <--- IMPORTAR
+import { useTheme } from '@/context/ThemeContext';
 
+// Ajustei a tipagem para aceitar apenas 'leads' ou 'call'
 interface NavbarProps {
-  currentTab: 'overview' | 'leads' | 'call';
-  onTabChange: (tab: 'overview' | 'leads' | 'call') => void;
+  currentTab: 'leads' | 'call';
+  onTabChange: (tab: 'leads' | 'call') => void;
 }
 
 export default function Navbar({ currentTab, onTabChange }: NavbarProps) {
   const router = useRouter();
-  const { theme, toggleTheme } = useTheme(); // <--- USAR HOOK
+  const { theme, toggleTheme } = useTheme();
 
   const handleLogout = () => {
     Cookies.remove('santa_auth');
@@ -26,33 +27,27 @@ export default function Navbar({ currentTab, onTabChange }: NavbarProps) {
         </div>
         
         <div className={styles.tabs}>
-          {/* ... botões das abas (iguais) ... */}
-          <button 
-            className={`${styles.tab} ${currentTab === 'overview' ? styles.active : ''}`}
-            onClick={() => onTabChange('overview')}
-          >
-            <LayoutDashboard size={18} />
-            Dashboard
-          </button>
+          {/* ABA UNIFICADA: Leads & Dashboard */}
           <button 
             className={`${styles.tab} ${currentTab === 'leads' ? styles.active : ''}`}
             onClick={() => onTabChange('leads')}
           >
             <Users size={18} />
-            Leads
+            Whatsapp
           </button>
+
+          {/* ABA CALL CENTER */}
           <button 
             className={`${styles.tab} ${currentTab === 'call' ? styles.active : ''}`}
             onClick={() => onTabChange('call')}
           >
             <PhoneCall size={18} />
-            Call Center
+            Ligações
           </button>
         </div>
       </div>
 
       <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-        {/* BOTÃO DE TEMA */}
         <button onClick={toggleTheme} className={styles.iconBtn} title="Alternar Tema">
           {theme === 'light' ? (
             <Moon size={20} className={styles.moonIcon} />
@@ -61,7 +56,6 @@ export default function Navbar({ currentTab, onTabChange }: NavbarProps) {
           )}
         </button>
 
-        {/* BOTÃO SAIR */}
         <button onClick={handleLogout} className={`${styles.iconBtn} ${styles.logoutBtn}`} title="Sair">
           <LogOut size={20} />
         </button>

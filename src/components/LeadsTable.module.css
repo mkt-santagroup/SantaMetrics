@@ -121,15 +121,14 @@
 
 /* ESTILOS ESPECÍFICOS */
 .dateCell {
-  /* AQUI ESTAVA O PROBLEMA: antes devia ser #000 ou #666 */
-  color: var(--text-primary); /* <--- AGORA VAI FICAR BRANCO NO DARK */
+  color: var(--text-primary);
   font-weight: 500;
   white-space: nowrap;
 }
 
 .phoneCell {
   font-family: 'Montserrat', monospace;
-  color: var(--text-secondary); /* Esse aqui já estava certo, fica cinza */
+  color: var(--text-secondary); 
   font-weight: 600;
   font-size: 0.9rem;
 }
@@ -275,4 +274,75 @@
   opacity: 0.5;
   cursor: not-allowed;
   background: var(--bg-hover);
+}
+
+/* --- DROPDOWN CUSTOMIZADO (NOVO) --- */
+.customSelectContainer {
+  position: relative;
+  display: inline-block;
+  min-width: 130px;
+}
+
+.customSelectTrigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 16px;
+  background-color: var(--bg-page);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.customSelectTrigger:hover {
+  border-color: var(--text-tertiary);
+}
+
+.customSelectDropdown {
+  position: absolute;
+  bottom: 120%; /* Abre para cima */
+  left: 0;
+  width: 100%;
+  background-color: var(--bg-card); /* Usa a cor do card (mais clara que o fundo no dark) */
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+  padding: 4px;
+  z-index: 50;
+  animation: scaleIn 0.15s ease-out;
+  overflow: hidden;
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.customOption {
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.customOption:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.customOptionSelected {
+  background-color: var(--accent-color);
+  color: var(--accent-text);
+}
+
+.customOptionSelected:hover {
+  background-color: var(--accent-color); /* Mantém a cor se já selecionado */
 }

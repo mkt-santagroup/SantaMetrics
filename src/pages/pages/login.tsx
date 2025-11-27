@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useRouter } from 'next/router';
 import Cookies from 'js-cookie';
-import styles from './Login.module.css';
-import { Lock, ArrowRight, User } from 'lucide-react';
+// AJUSTE AQUI: Importando com letras minúsculas para garantir compatibilidade
+import styles from './login.module.css'; 
+import { Lock, ArrowRight } from 'lucide-react';
 import Head from 'next/head';
 
 export default function Login() {
@@ -17,8 +18,7 @@ export default function Login() {
     setError('');
     setLoading(true);
 
-    // Simulação de Login simples (pode ajustar a senha conforme desejar)
-    // Aqui estou aceitando qualquer email e senha 'admin' ou apenas setando o cookie direto
+    // Simulação de Login simples
     if (password) {
       // Define o cookie que o index.tsx verifica
       Cookies.set('santa_auth', 'logado', { expires: 7 }); 

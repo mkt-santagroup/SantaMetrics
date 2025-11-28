@@ -1,12 +1,13 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { CallLead } from '@/types/callLeads';
-import { format, isSameDay, subDays, isAfter } from 'date-fns';
+import { format, isSameDay, subDays, isAfter, addDays, isBefore } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import styles from './LeadsTable.module.css';
 import { 
   CheckCircle, XCircle, Clock, Search, 
   ChevronLeft, ChevronRight, Filter, Phone, PhoneOff, AlertCircle, ChevronUp, ChevronDown 
 } from 'lucide-react';
+import { supabase } from '@/lib/supabaseClient'; // <--- IMPORTANTE: Importar o cliente Supabase
 
 interface CallLeadsTableProps {
   data: CallLead[];
@@ -28,7 +29,6 @@ const STATUS_CONFIG: Record<string, { label: string, color: string, bg: string, 
 export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps) {
   
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'online' | 'offline'>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   
@@ -46,6 +46,58 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
+
+  // --- FUNÇÕES DE CÁLCULO ---
+
+  // Verifica se o login foi no mesmo dia e após a call (Cálculo puro)
+  const calculateIsPosCall = (item: CallLead): boolean => {
+    if (!item.Last_login) return false;
+    const loginDate = new Date(item.Last_login);
+
+    const checkSameDayConversion = (callTimeStr: string | null) => {
+      if (!callTimeStr) return false;
+      const callDate = new Date(callTimeStr);
+      // Regra: Login depois da call E no mesmo dia
+      return isAfter(loginDate, callDate) && isSameDay(loginDate, callDate);
+    };
+
+    return checkSameDayConversion(item.call1_hour) || checkSameDayConversion(item.call2_hour);
+  };
+
+  // --- TRIGGER AUTOMÁTICO (UseEffect) ---
+  useEffect(() => {
+    // Esta função varre os dados atuais para ver se alguém converteu mas não está marcado no DB
+    const updateConversions = async () => {
+      // Filtra apenas quem precisa de update para evitar chamadas desnecessárias
+      const leadsToUpdate = data.filter(item => {
+        // Se já está TRUE no banco, ignora (já foi salvo)
+        if (item.login_no_dia === true) return false;
+
+        // Se está FALSE ou NULL, verifica se o cálculo diz que deveria ser TRUE
+        const shouldBeTrue = calculateIsPosCall(item);
+        return shouldBeTrue;
+      });
+
+      if (leadsToUpdate.length === 0) return;
+
+      // Executa o update no Supabase para cada lead encontrado
+      // Nota: Idealmente faríamos um update em massa, mas loop simples funciona para volume moderado
+      for (const lead of leadsToUpdate) {
+        try {
+          console.log(`Atualizando Lead #${lead.ID} para login_no_dia = TRUE`);
+          await supabase
+            .from('CALL-UNIVESO-RP-LEADS')
+            .update({ login_no_dia: true })
+            .eq('ID', lead.ID);
+        } catch (err) {
+          console.error(`Erro ao atualizar lead ${lead.ID}:`, err);
+        }
+      }
+    };
+
+    updateConversions();
+  }, [data]); // Roda sempre que "data" muda (ex: realtime ou fetch inicial)
+
 
   // --- LÓGICA DE FILTRAGEM ---
   const filteredData = useMemo(() => {
@@ -69,18 +121,14 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
         item.ID.toString().includes(searchLower) ||
         (item.nome && item.nome.toLowerCase().includes(searchLower)) ||
         (item.whatsapp && item.whatsapp.includes(searchLower));
-
-      let matchesStatus = true;
-      if (statusFilter === 'online') matchesStatus = item.login_no_dia === true;
-      else if (statusFilter === 'offline') matchesStatus = item.login_no_dia === false || item.login_no_dia === null;
-
-      return matchesSearch && matchesStatus;
+      
+      return matchesSearch;
     });
-  }, [data, searchTerm, statusFilter, dateFilter]);
+  }, [data, searchTerm, dateFilter]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter, dateFilter, itemsPerPage]);
+  }, [searchTerm, dateFilter, itemsPerPage]);
 
   const totalPages = Math.ceil(filteredData.length / itemsPerPage);
   
@@ -89,13 +137,12 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
     return filteredData.slice(startIndex, startIndex + itemsPerPage);
   }, [filteredData, currentPage, itemsPerPage]);
 
-  // Formata Data/Hora Geral
+  // --- HELPERS DE FORMATAÇÃO ---
   const formatData = (dateStr: string | null) => {
     if (!dateStr) return '-';
     return format(new Date(dateStr), "dd/MM HH:mm", { locale: ptBR });
   };
 
-  // Formata Apenas Hora (para as colunas de Call)
   const formatHora = (dateStr: string | null) => {
     if (!dateStr) return null;
     return format(new Date(dateStr), "HH:mm", { locale: ptBR });
@@ -110,12 +157,31 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
   };
 
   const BooleanBadge = ({ value }: { value: boolean | null }) => {
+    // Aqui usamos o valor direto do banco (value), que agora será persistente
     if (value === true) return <span style={{color: '#16a34a', display:'flex', alignItems:'center', gap:4, fontWeight:600, fontSize:'0.85rem'}}><CheckCircle size={14}/> Sim</span>;
-    if (value === false) return <span style={{color: '#dc2626', display:'flex', alignItems:'center', gap:4, fontWeight:600, fontSize:'0.85rem'}}><XCircle size={14}/> Não</span>;
-    return <span style={{color: 'var(--text-tertiary)'}}>-</span>;
+    // Se não é true, assumimos não (vermelho)
+    return <span style={{color: '#dc2626', display:'flex', alignItems:'center', gap:4, fontWeight:600, fontSize:'0.85rem'}}><XCircle size={14}/> Não</span>;
   };
 
-  // Componente de Status com Hora Embaixo
+  // Cálculo da janela de 7 dias (Visual apenas)
+  const checkFezLogin7Days = (item: CallLead): boolean => {
+    if (!item.Last_login) return false;
+    const loginDate = new Date(item.Last_login);
+
+    const checkWindow = (callTimeStr: string | null) => {
+      if (!callTimeStr) return false;
+      const callDate = new Date(callTimeStr);
+      const limitDate = addDays(callDate, 7); 
+      return isAfter(loginDate, callDate) && isBefore(loginDate, limitDate);
+    };
+    return checkWindow(item.call1_hour) || checkWindow(item.call2_hour);
+  };
+
+  const FezLoginBadge = ({ value }: { value: boolean }) => {
+     if (value === true) return <span style={{color: 'var(--text-primary)', fontWeight:700, fontSize:'0.85rem'}}>Sim</span>;
+     return <span style={{color: 'var(--text-tertiary)', fontSize:'0.85rem'}}>Não</span>;
+  };
+
   const CallStatusCell = ({ status, timeStr }: { status: string | null, timeStr: string | null }) => {
     if (!status && !timeStr) return <span style={{color: 'var(--text-tertiary)', fontSize: '0.85rem'}}>-</span>;
     
@@ -125,7 +191,6 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
       bg: 'var(--bg-hover)', 
       icon: null 
     };
-
     const Icon = config.icon;
     const horaFormatada = formatHora(timeStr);
 
@@ -174,29 +239,6 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-
-          <div className={styles.filterTabs}>
-            <button 
-              className={`${styles.filterTab} ${statusFilter === 'all' ? styles.filterTabActive : ''}`}
-              onClick={() => setStatusFilter('all')}
-            >
-              Todos
-            </button>
-            <button 
-              className={`${styles.filterTab} ${statusFilter === 'online' ? styles.filterTabActive : ''}`}
-              onClick={() => setStatusFilter('online')}
-              style={{ color: statusFilter === 'online' ? '#16a34a' : '' }}
-            >
-              Logou Pós Call
-            </button>
-            <button 
-              className={`${styles.filterTab} ${statusFilter === 'offline' ? styles.filterTabActive : ''}`}
-              onClick={() => setStatusFilter('offline')}
-              style={{ color: statusFilter === 'offline' ? '#dc2626' : '' }}
-            >
-              Não Logou
-            </button>
-          </div>
         </div>
       </div>
 
@@ -206,53 +248,61 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
             <th>ID</th>
             <th>Nome / WhatsApp</th>
             <th>Tempo Jogo</th>
-            <th>Pós Call</th> {/* Alterado de "Login Hoje" */}
+            <th>Pós Call</th>
+            <th>Fez Login (7d)</th>
+            <th>Último Login</th>
             <th>1ª Ligação</th>
             <th>2ª Ligação</th>
-            <th>Último Login</th>
           </tr>
         </thead>
         <tbody>
-          {paginatedData.map((item) => (
-            <tr key={item.ID} className={styles.clickableRow}>
-              <td className={styles.dateCell} style={{ fontWeight: 800 }}>
-                #{item.ID}
-              </td>
-              <td className={styles.nameCell}>
-                <div style={{display:'flex', flexDirection:'column'}}>
-                  <span style={{fontWeight: 700}}>{item.nome || <i style={{color:'var(--text-tertiary)', fontWeight:400}}>Desconhecido</i>}</span>
-                  <span style={{fontSize:'0.75rem', color:'var(--text-secondary)', fontWeight:500, marginTop:2}}>{item.whatsapp || '-'}</span>
-                </div>
-              </td>
-              <td>
-                <div style={{display:'flex', alignItems:'center', gap:6, fontWeight:600, color:'var(--text-secondary)', fontSize:'0.9rem'}}>
-                  <Clock size={14} />
-                  {formatTempo(item.Tempo_de_jogo)}
-                </div>
-              </td>
-              
-              {/* Coluna Pós Call (login_no_dia) */}
-              <td><BooleanBadge value={item.login_no_dia} /></td>
-              
-              {/* Coluna 1ª Ligação (Status + Hora) */}
-              <td>
-                <CallStatusCell status={item.call1_status} timeStr={item.call1_hour} />
-              </td>
-              
-              {/* Coluna 2ª Ligação (Status + Hora) */}
-              <td>
-                <CallStatusCell status={item.call2_status} timeStr={item.call2_hour} />
-              </td>
+          {paginatedData.map((item) => {
+            
+            // Aqui usamos APENAS o valor do banco para exibição.
+            // O useEffect lá em cima cuida de transformar FALSE em TRUE se a regra bater.
+            const displayPosCall = item.login_no_dia; 
+            
+            const fezLogin7d = checkFezLogin7Days(item);
 
-              <td className={styles.dateCell} style={{fontSize:'0.85rem'}}>
-                {formatData(item.Last_login)}
-              </td>
-            </tr>
-          ))}
+            return (
+              <tr key={item.ID} className={styles.clickableRow}>
+                <td className={styles.dateCell} style={{ fontWeight: 800 }}>
+                  #{item.ID}
+                </td>
+                <td className={styles.nameCell}>
+                  <div style={{display:'flex', flexDirection:'column'}}>
+                    <span style={{fontWeight: 700}}>{item.nome || <i style={{color:'var(--text-tertiary)', fontWeight:400}}>Desconhecido</i>}</span>
+                    <span style={{fontSize:'0.75rem', color:'var(--text-secondary)', fontWeight:500, marginTop:2}}>{item.whatsapp || '-'}</span>
+                  </div>
+                </td>
+                <td>
+                  <div style={{display:'flex', alignItems:'center', gap:6, fontWeight:600, color:'var(--text-secondary)', fontSize:'0.9rem'}}>
+                    <Clock size={14} />
+                    {formatTempo(item.Tempo_de_jogo)}
+                  </div>
+                </td>
+                
+                {/* Exibe o valor do DB. Se for TRUE, fica verde pra sempre */}
+                <td><BooleanBadge value={displayPosCall} /></td>
+                
+                <td><FezLoginBadge value={fezLogin7d} /></td>
+
+                <td className={styles.dateCell} style={{fontSize:'0.85rem'}}>
+                  {formatData(item.Last_login)}
+                </td>
+                <td>
+                  <CallStatusCell status={item.call1_status} timeStr={item.call1_hour} />
+                </td>
+                <td>
+                  <CallStatusCell status={item.call2_status} timeStr={item.call2_hour} />
+                </td>
+              </tr>
+            );
+          })}
           
           {filteredData.length === 0 && (
             <tr>
-              <td colSpan={7} className={styles.emptyState} style={{ padding: '4rem' }}>
+              <td colSpan={8} className={styles.emptyState} style={{ padding: '4rem' }}>
                 <div style={{display:'flex', flexDirection:'column', alignItems:'center', gap:'1rem'}}>
                   <Filter size={40} strokeWidth={1} />
                   <span>Nenhum registro encontrado.</span>
@@ -269,7 +319,6 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
             <span className={styles.pageInfo}>
               Mostrando <b>{paginatedData.length}</b> de <b>{filteredData.length}</b>
             </span>
-            
             <div className={styles.customSelectContainer} ref={dropdownRef}>
               <button 
                 className={styles.customSelectTrigger} 
@@ -278,7 +327,6 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
                 {itemsPerPage} por pág
                 {isDropdownOpen ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
               </button>
-              
               {isDropdownOpen && (
                 <div className={styles.customSelectDropdown}>
                   {[10, 20, 30, 50, 100].map(val => (
@@ -293,9 +341,7 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
                 </div>
               )}
             </div>
-
           </div>
-          
           <div className={styles.pageButtons}>
             <button 
               className={styles.pageBtn} 

@@ -1,158 +1,103 @@
 .container {
   animation: fadeIn 0.4s ease-out;
   font-family: 'Montserrat', sans-serif;
-  margin-bottom: 2rem;
+  margin-top: 1rem;
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
+  from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* --- GRID DE CARDS --- */
-.gridCards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 1.5rem;
-  margin-bottom: 2rem;
-}
-
-.card {
-  background: var(--bg-card);
-  padding: 1.5rem;
-  border-radius: 20px;
-  box-shadow: 0 10px 30px -10px var(--shadow-color);
-  border: 1px solid var(--border-color);
-  display: flex;
-  flex-direction: column;
-  gap: 0.8rem;
-  transition: transform 0.2s, background-color 0.3s ease, border-color 0.3s ease;
-}
-
-.card:hover {
-  transform: translateY(-3px);
-}
-
-.cardHeader {
+/* --- SECTION HEADER (ONDE FICAM OS FILTROS) --- */
+.sectionHeader {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin: 3rem 0 1.5rem 0;
+  border-top: 1px solid var(--border-color);
+  padding-top: 2rem;
+  flex-wrap: wrap;
+  gap: 1.5rem;
 }
 
-.iconBox {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
+.leftControls {
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 1.5rem;
 }
 
-.cardLabel {
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.cardValue {
-  font-size: 2rem;
+.sectionTitle {
+  font-size: 1.25rem;
   font-weight: 800;
   color: var(--text-primary);
-  line-height: 1;
+  margin: 0;
 }
 
-.cardSub {
-  font-size: 0.85rem;
-  font-weight: 500;
+/* --- TOGGLE BUTTONS (1ª e 2ª Ligação) --- */
+.toggleGroup {
+  display: flex;
+  background: var(--bg-hover);
+  padding: 4px;
+  border-radius: 12px;
+  gap: 4px;
 }
 
-/* --- ÁREA DOS GRÁFICOS --- */
+.toggleBtn {
+  background: transparent;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: 'Montserrat', sans-serif;
+}
+
+.toggleBtn:hover {
+  color: var(--text-primary);
+}
+
+.activeToggle {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-weight: 800;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+/* --- CHART CONTAINERS --- */
 .chartsGrid {
   display: grid;
-  grid-template-columns: 1fr 2fr;
+  grid-template-columns: 1fr; /* Coluna única para focar na análise */
   gap: 1.5rem;
 }
 
 .chartContainer {
   background: var(--bg-card);
   padding: 1.5rem;
-  border-radius: 20px;
+  border-radius: 24px; 
   border: 1px solid var(--border-color);
-  box-shadow: 0 10px 30px -10px var(--shadow-color);
-  transition: background-color 0.3s ease, border-color 0.3s ease;
+  box-shadow: 0 10px 15px -3px var(--shadow-color);
 }
 
 .chartTitle {
   margin: 0 0 1.5rem 0;
   font-size: 1rem;
-  font-weight: 700;
   color: var(--text-primary);
-}
-
-/* --- TOOLTIP CUSTOMIZADO (ATUALIZADO) --- */
-.customTooltip {
-  background-color: #171717; /* Fundo preto/cinza bem escuro sólido */
-  border: 1px solid #333;
-  border-radius: 16px;
-  padding: 1.25rem;
-  box-shadow: 0 20px 40px rgba(0,0,0,0.4);
-  min-width: 220px;
-  z-index: 50;
-  position: relative;
-}
-
-.tooltipTitle {
-  margin: 0 0 1rem 0;
-  font-size: 1rem;
-  font-weight: 800;
-  color: #fff;
-  border-bottom: 1px solid #333;
-  padding-bottom: 0.75rem;
-  letter-spacing: -0.02em;
-}
-
-.tooltipRow {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 0.5rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #a3a3a3; /* Cinza claro */
 }
 
-.tooltipValue {
-  font-weight: 700;
-  color: #fff;
-  font-size: 0.95rem;
-}
-
-.tooltipDivider {
-  width: 100%;
-  height: 1px;
-  background-color: #333;
-  margin: 1rem 0;
-}
-
-.tooltipFooter {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: #fff;
-}
-
-.tooltipTotalValue {
-  font-size: 1.1rem;
-  font-weight: 800;
-  color: #fff;
-}
-
+/* Responsividade */
 @media (max-width: 1000px) {
-  .chartsGrid {
-    grid-template-columns: 1fr;
+  .sectionHeader {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }

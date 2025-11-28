@@ -1,6 +1,9 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { CallLead } from '@/types/callLeads';
-import { format, isSameDay, isAfter, addDays, isBefore, parseISO, differenceInDays } from 'date-fns';
+import { 
+  format, isSameDay, isAfter, addDays, isBefore, 
+  parseISO, differenceInDays, isEqual 
+} from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import styles from './LeadsTable.module.css';
 import { 
@@ -47,10 +50,12 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
     };
   }, []);
 
-  // --- MOTOR DE SALVAMENTO (Mantido igual) ---
+  // --- 1. MOTOR DE SALVAMENTO (WRITE) ---
   useEffect(() => {
     const runUpdates = async () => {
       for (const item of data) {
+        
+        // Snapshot Inicial
         if (!item.last_login_static && item.Last_login) {
           await supabase
             .from('CALL-UNIVESO-RP-LEADS')
@@ -58,20 +63,30 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
             .eq('ID', item.ID);
           continue; 
         }
+
+        // Conversão (Write Logic)
+        // Aqui garantimos que só salva se o login for DEPOIS da call
         if (item.Last_login) {
-          const liveLoginDate = parseISO(item.Last_login);
+          const liveLoginDate = parseISO(item.Last_login); 
           const callReferenceStr = item.call1_hour || item.created_at; 
           
           if (callReferenceStr) {
             const callDate = parseISO(callReferenceStr);
+            
+            // Só salva se o login for POSTERIOR à call
             if (isAfter(liveLoginDate, callDate)) {
-               const savedPosLogin = item.pos_login_static ? parseISO(item.pos_login_static) : null;
-               if (!savedPosLogin || isAfter(liveLoginDate, savedPosLogin)) {
+              const limitDate = addDays(callDate, 7);
+              if (isBefore(liveLoginDate, limitDate)) {
+                const currentSaved = item.pos_login_static ? parseISO(item.pos_login_static) : null;
+                const needsUpdate = !currentSaved || (isAfter(liveLoginDate, currentSaved) && !isEqual(liveLoginDate, currentSaved));
+
+                if (needsUpdate) {
                   await supabase
                     .from('CALL-UNIVESO-RP-LEADS')
-                    .update({ pos_login_static: item.Last_login })
+                    .update({ pos_login_static: item.Last_login }) 
                     .eq('ID', item.ID);
-               }
+                }
+              }
             }
           }
         }
@@ -80,18 +95,20 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
     runUpdates();
   }, [data]);
 
-  // --- FILTROS ---
+  // --- 2. FILTROS ---
   const filteredData = useMemo(() => {
     const today = new Date();
     return data.filter((item) => {
       const itemDate = item.created_at ? new Date(item.created_at) : null;
       if (dateFilter !== 'lifetime' && !itemDate) return false;
+
       if (itemDate) {
         if (dateFilter === 'today' && !isSameDay(itemDate, today)) return false;
-        if (dateFilter === 'yesterday' && !isSameDay(itemDate, addDays(today, -1))) return false;
-        if (dateFilter === '7days' && !isAfter(itemDate, addDays(today, -7))) return false;
-        if (dateFilter === '30days' && !isAfter(itemDate, addDays(today, -30))) return false;
+        if (dateFilter === 'yesterday' && !isSameDay(itemDate, subDays(today, 1))) return false;
+        if (dateFilter === '7days' && !isAfter(itemDate, subDays(today, 7))) return false;
+        if (dateFilter === '30days' && !isAfter(itemDate, subDays(today, 30))) return false;
       }
+
       const searchLower = searchTerm.toLowerCase();
       return (
         item.ID.toString().includes(searchLower) ||
@@ -101,7 +118,8 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
     });
   }, [data, searchTerm, dateFilter]);
 
-  useEffect(() => { setCurrentPage(1) }, [searchTerm, dateFilter, itemsPerPage]);
+  // Paginação
+  useEffect(() => setCurrentPage(1), [searchTerm, dateFilter, itemsPerPage]);
   const totalPages = Math.ceil(filteredData.length / itemsPerPage);
   const paginatedData = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
@@ -114,54 +132,60 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
 
   const formatData = (dateStr: string | null) => {
     if (!dateStr) return '-';
-    return format(parseISO(dateStr), "dd/MM HH:mm", { locale: ptBR });
+    // Força exibição no fuso brasileiro
+    return new Intl.DateTimeFormat('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(new Date(dateStr));
   };
 
-  // --- BADGE DE STATUS COM LÓGICA "ANTES" ---
+  // --- 3. BADGES CORRIGIDOS (VISUAL LOGIC) ---
   const StatusPosCallBadge = ({ item }: { item: CallLead }) => {
-    if (!item.pos_login_static) {
-      return (
-        <span style={{ 
-          color: '#ef4444', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: '0.85rem',
-          background: 'rgba(239, 68, 68, 0.1)', padding: '4px 12px', borderRadius: '99px', width: 'fit-content'
-        }}>
-          <XCircle size={14} /> Não
-        </span>
-      );
-    }
+    // Componente reutilizável para badge "Antes"
+    const BadgeAntes = () => (
+      <span style={{ 
+        color: '#8b5cf6', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: '0.85rem',
+        background: 'rgba(139, 92, 246, 0.1)', padding: '4px 12px', borderRadius: '99px', width: 'fit-content'
+      }}>
+        <UserCheck size={14} /> Antes
+      </span>
+    );
 
-    // NOVA REGRA: Se tem pos_login, mas NÃO TEM hora de call -> ANTES
-    if (!item.call1_hour && !item.call2_hour) {
-      return (
-        <span style={{ 
-          color: '#8b5cf6', // Roxo
-          display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: '0.85rem',
-          background: 'rgba(139, 92, 246, 0.1)', padding: '4px 12px', borderRadius: '99px', width: 'fit-content'
-        }}>
-          <UserCheck size={14} /> Antes
-        </span>
-      );
-    }
+    const BadgeNao = () => (
+      <span style={{ 
+        color: '#ef4444', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: '0.85rem',
+        background: 'rgba(239, 68, 68, 0.1)', padding: '4px 12px', borderRadius: '99px', width: 'fit-content'
+      }}>
+        <XCircle size={14} /> Não
+      </span>
+    );
 
+    // Se não tem pos_login -> Não
+    if (!item.pos_login_static) return <BadgeNao />;
+
+    // Se não tem hora de call -> Antes (ou Orgânico)
+    if (!item.call1_hour && !item.call2_hour) return <BadgeAntes />;
+
+    // Datas para comparação
     const posLoginDate = parseISO(item.pos_login_static);
-    const callReferenceStr = item.call1_hour || item.call2_hour;
-    // Se por algum milagre entrou aqui sem hora, usa created_at (mas cairia no if acima)
-    const callDate = callReferenceStr ? parseISO(callReferenceStr) : new Date();
+    const callRefStr = item.call1_hour || item.call2_hour;
+    const callDate = callRefStr ? parseISO(callRefStr) : new Date();
+
+    // CORREÇÃO CRÍTICA: Se o login registrado for ANTES da ligação, marca como "Antes"
+    // (Mesmo que o DB tenha salvado algo, visualmente corrigimos aqui)
+    if (isBefore(posLoginDate, callDate)) {
+      return <BadgeAntes />;
+    }
 
     const diffDays = differenceInDays(posLoginDate, callDate);
 
-    // Se a diferença for > 7 dias, invalidamos
-    if (diffDays > 7) {
-      return (
-        <span style={{ 
-          color: '#ef4444', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: '0.85rem',
-          background: 'rgba(239, 68, 68, 0.1)', padding: '4px 12px', borderRadius: '99px', width: 'fit-content'
-        }}>
-          <XCircle size={14} /> Não
-        </span>
-      );
-    }
+    // Se passou de 7 dias -> Não
+    if (diffDays > 7) return <BadgeNao />;
 
+    // Se mesmo dia -> Sim
     if (isSameDay(posLoginDate, callDate)) {
       return (
         <span style={{ 
@@ -172,6 +196,7 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
         </span>
       );
     } else {
+      // Se outro dia (dentro dos 7) -> Depois
       return (
         <span style={{ 
           color: '#3b82f6', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: '0.85rem',
@@ -199,7 +224,7 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
         </span>
         {timeStr && (
           <span style={{fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginLeft: '4px'}}>
-            às {format(parseISO(timeStr), "HH:mm")}
+            às {formatData(timeStr)}
           </span>
         )}
       </div>
@@ -249,10 +274,15 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
                   {formatTempo(item.Tempo_de_jogo)}
                 </div>
               </td>
-              <td align="center"><StatusPosCallBadge item={item} /></td>
+              
+              <td align="center">
+                <StatusPosCallBadge item={item} />
+              </td>
+              
               <td className={styles.dateCell} style={{fontSize:'0.85rem', color: 'var(--text-secondary)'}}>
                 {formatData(item.last_login_static || item.Last_login)} 
               </td>
+              
               <td className={styles.dateCell} style={{fontSize:'0.85rem', fontWeight: 600, color: item.pos_login_static ? '#10b981' : 'var(--text-tertiary)'}}>
                 {item.pos_login_static ? (
                   <div style={{display:'flex', alignItems:'center', gap:6}}>
@@ -261,6 +291,7 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
                   </div>
                 ) : '-'}
               </td>
+              
               <td><CallStatusCell status={item.call1_status} timeStr={item.call1_hour} /></td>
               <td><CallStatusCell status={item.call2_status} timeStr={item.call2_hour} /></td>
             </tr>
@@ -278,7 +309,6 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
         </tbody>
       </table>
       
-      {/* PAGINAÇÃO (Mantida) */}
       {filteredData.length > 0 && (
         <div className={styles.pagination}>
           <div style={{display:'flex', alignItems:'center', gap:'1rem'}}>

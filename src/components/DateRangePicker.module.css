@@ -1,0 +1,174 @@
+/* Container Principal */
+.container {
+  position: relative;
+  z-index: 50;
+  font-family: 'Montserrat', sans-serif;
+}
+
+/* Botão que abre o calendário */
+.triggerBtn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background-color: var(--bg-card); /* Usa a cor do card do seu tema */
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 10px 16px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  min-width: 220px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+
+.triggerBtn:hover, .active {
+  background-color: var(--bg-hover);
+  border-color: var(--text-primary);
+}
+
+.icon { color: var(--text-secondary); }
+.chevron { opacity: 0.5; }
+
+/* O Pop-up (Dropdown) */
+.dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background-color: #09090b; /* Fundo Preto Moderno (Zinc-950) */
+  border: 1px solid #27272a; /* Borda Cinza Escura (Zinc-800) */
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 1); /* Sombra forte */
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 340px;
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Área dos Botões Rápidos (Hoje, Ontem...) */
+.presets {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  border-bottom: 1px solid #27272a;
+  padding-bottom: 16px;
+}
+
+.presets button {
+  background-color: transparent;
+  border: 1px solid #27272a;
+  color: #a1a1aa; /* Cinza claro */
+  padding: 8px;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.presets button:hover {
+  background-color: #27272a;
+  color: #fff;
+}
+
+/* Botão Ativo nos Presets */
+.presetActive {
+  background-color: #fff !important;
+  color: #000 !important;
+  font-weight: 700 !important;
+  border-color: #fff !important;
+}
+
+/* --- A MÁGICA DO CALENDÁRIO (Usando Variáveis) --- */
+.calendarWrapper {
+  display: flex;
+  justify-content: center;
+  
+  /* CONFIGURAÇÃO DE CORES (V9) */
+  /* Isso substitui o "azul escroto" por Branco/Preto nativamente */
+  --rdp-accent-color: #ffffff;           /* Cor de Fundo da Seleção */
+  --rdp-accent-color-foreground: #000000; /* Cor do Texto da Seleção */
+  --rdp-background-color: #27272a;       /* Cor de Fundo do Hover */
+  --rdp-day-size: 40px;                  /* Tamanho do botão do dia */
+  --rdp-day-font: 'Montserrat', sans-serif;
+  
+  /* Cores do texto */
+  color: #fff; 
+}
+
+/* Ajustes finos que as variáveis não pegam */
+
+/* Título do Mês */
+.calendarWrapper :global(.rdp-caption_label) {
+  font-size: 1rem;
+  font-weight: 700;
+  text-transform: capitalize;
+  color: #fff;
+}
+
+/* Setas de navegação */
+.calendarWrapper :global(.rdp-nav_button) {
+  color: #a1a1aa;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+}
+.calendarWrapper :global(.rdp-nav_button:hover) {
+  background-color: #27272a;
+  color: #fff;
+}
+
+/* Cabeçalho dos dias (Dom, Seg...) */
+.calendarWrapper :global(.rdp-head_cell) {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #52525b; /* Zinc-600 */
+  text-transform: uppercase;
+  padding-bottom: 12px;
+}
+
+/* Dias (Células) */
+.calendarWrapper :global(.rdp-day) {
+  border-radius: 8px; /* Quadrado arredondado moderno */
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+/* Dia de Hoje */
+.calendarWrapper :global(.rdp-day_today:not(.rdp-day_selected)) {
+  font-weight: 900;
+  color: #fff;
+  text-decoration: underline;
+  text-decoration-color: #52525b;
+  text-underline-offset: 4px;
+}
+
+/* Ajuste do Range (Faixa) */
+.calendarWrapper :global(.rdp-day_range_middle) {
+  opacity: 1 !important;
+  border-radius: 0 !important; /* Conecta os meios */
+  background-color: #ffffff !important; /* Garante fundo branco */
+  color: #000000 !important; /* Garante texto preto */
+}
+
+/* Início e Fim arredondados */
+.calendarWrapper :global(.rdp-day_range_start) {
+  border-radius: 8px 0 0 8px !important;
+}
+.calendarWrapper :global(.rdp-day_range_end) {
+  border-radius: 0 8px 8px 0 !important;
+}
+
+/* Dia único selecionado */
+.calendarWrapper :global(.rdp-day_range_start.rdp-day_range_end) {
+  border-radius: 8px !important;
+}

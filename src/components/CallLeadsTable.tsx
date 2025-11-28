@@ -1,15 +1,14 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { CallLead } from '@/types/callLeads';
 import { 
-  format, isSameDay, isAfter, addDays, isBefore, 
-  parseISO, differenceInDays, isEqual 
+  isSameDay, isAfter, addDays, isBefore, 
+  parseISO, differenceInDays, isEqual, subDays 
 } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import styles from './LeadsTable.module.css';
 import { 
   CheckCircle, XCircle, Clock, Search, 
   ChevronLeft, ChevronRight, Filter, Phone, PhoneOff, AlertCircle, ChevronUp, ChevronDown, 
-  CalendarClock, LogIn, Send, UserCheck 
+  CalendarClock, LogIn, Send, UserCheck, Hash 
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -51,11 +50,12 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
   }, []);
 
   // --- 1. MOTOR DE SALVAMENTO (WRITE) ---
+  // Mantive sua lógica original, apenas garantindo que os nomes dos campos batem com o schema
   useEffect(() => {
     const runUpdates = async () => {
       for (const item of data) {
         
-        // Snapshot Inicial
+        // A. Snapshot Inicial: Se tem Login, mas não tem o "snapshot" (last_login_static) salvo
         if (!item.last_login_static && item.Last_login) {
           await supabase
             .from('CALL-UNIVESO-RP-LEADS')
@@ -64,10 +64,10 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
           continue; 
         }
 
-        // Conversão (Write Logic)
-        // Aqui garantimos que só salva se o login for DEPOIS da call
+        // B. Conversão (Pós Login Logic)
         if (item.Last_login) {
           const liveLoginDate = parseISO(item.Last_login); 
+          // Usa a hora da 1ª tentativa ou a criação do lead como referência
           const callReferenceStr = item.call1_hour || item.created_at; 
           
           if (callReferenceStr) {
@@ -75,9 +75,11 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
             
             // Só salva se o login for POSTERIOR à call
             if (isAfter(liveLoginDate, callDate)) {
-              const limitDate = addDays(callDate, 7);
+              const limitDate = addDays(callDate, 7); // Janela de 7 dias
               if (isBefore(liveLoginDate, limitDate)) {
+                
                 const currentSaved = item.pos_login_static ? parseISO(item.pos_login_static) : null;
+                // Atualiza se não tiver salvo ainda OU se o novo login for mais recente
                 const needsUpdate = !currentSaved || (isAfter(liveLoginDate, currentSaved) && !isEqual(liveLoginDate, currentSaved));
 
                 if (needsUpdate) {
@@ -99,6 +101,7 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
   const filteredData = useMemo(() => {
     const today = new Date();
     return data.filter((item) => {
+      // Filtro de Data
       const itemDate = item.created_at ? new Date(item.created_at) : null;
       if (dateFilter !== 'lifetime' && !itemDate) return false;
 
@@ -109,9 +112,12 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
         if (dateFilter === '30days' && !isAfter(itemDate, subDays(today, 30))) return false;
       }
 
+      // Filtro de Busca
       const searchLower = searchTerm.toLowerCase();
+      const idString = item.ID ? item.ID.toString() : '';
+      
       return (
-        item.ID.toString().includes(searchLower) ||
+        idString.includes(searchLower) ||
         (item.nome && item.nome.toLowerCase().includes(searchLower)) ||
         (item.whatsapp && item.whatsapp.includes(searchLower))
       );
@@ -132,7 +138,6 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
 
   const formatData = (dateStr: string | null) => {
     if (!dateStr) return '-';
-    // Força exibição no fuso brasileiro
     return new Intl.DateTimeFormat('pt-BR', {
       timeZone: 'America/Sao_Paulo',
       day: '2-digit',
@@ -142,9 +147,9 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
     }).format(new Date(dateStr));
   };
 
-  // --- 3. BADGES CORRIGIDOS (VISUAL LOGIC) ---
+  // --- 3. COMPONENTS AUXILIARES ---
+  
   const StatusPosCallBadge = ({ item }: { item: CallLead }) => {
-    // Componente reutilizável para badge "Antes"
     const BadgeAntes = () => (
       <span style={{ 
         color: '#8b5cf6', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: '0.85rem',
@@ -163,29 +168,20 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
       </span>
     );
 
-    // Se não tem pos_login -> Não
     if (!item.pos_login_static) return <BadgeNao />;
-
-    // Se não tem hora de call -> Antes (ou Orgânico)
     if (!item.call1_hour && !item.call2_hour) return <BadgeAntes />;
 
-    // Datas para comparação
     const posLoginDate = parseISO(item.pos_login_static);
     const callRefStr = item.call1_hour || item.call2_hour;
     const callDate = callRefStr ? parseISO(callRefStr) : new Date();
 
-    // CORREÇÃO CRÍTICA: Se o login registrado for ANTES da ligação, marca como "Antes"
-    // (Mesmo que o DB tenha salvado algo, visualmente corrigimos aqui)
     if (isBefore(posLoginDate, callDate)) {
       return <BadgeAntes />;
     }
 
     const diffDays = differenceInDays(posLoginDate, callDate);
-
-    // Se passou de 7 dias -> Não
     if (diffDays > 7) return <BadgeNao />;
 
-    // Se mesmo dia -> Sim
     if (isSameDay(posLoginDate, callDate)) {
       return (
         <span style={{ 
@@ -196,7 +192,6 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
         </span>
       );
     } else {
-      // Se outro dia (dentro dos 7) -> Depois
       return (
         <span style={{ 
           color: '#3b82f6', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: '0.85rem',
@@ -261,7 +256,21 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
         <tbody>
           {paginatedData.map((item) => (
             <tr key={item.ID} className={styles.clickableRow}>
-              <td className={styles.dateCell} style={{ fontWeight: 800 }}>#{item.ID}</td>
+              <td className={styles.dateCell}>
+                <div style={{display:'flex', flexDirection:'column', gap: 4}}>
+                  <span style={{fontWeight: 800}}>#{item.ID}</span>
+                  {/* EXIBIÇÃO DO NOVO CAMPO CALL_COUNT */}
+                  {item.call_count !== null && item.call_count > 0 && (
+                    <span style={{
+                      fontSize: '0.65rem', background: 'var(--bg-hover)', color: 'var(--text-secondary)',
+                      padding: '2px 6px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: 3, width: 'fit-content'
+                    }}>
+                      <Hash size={10}/> {item.call_count}x
+                    </span>
+                  )}
+                </div>
+              </td>
+              
               <td className={styles.nameCell}>
                 <div style={{display:'flex', flexDirection:'column'}}>
                   <span style={{fontWeight: 700}}>{item.nome || <i style={{fontWeight:400, opacity:0.6}}>Desconhecido</i>}</span>
@@ -309,6 +318,7 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
         </tbody>
       </table>
       
+      {/* PAGINAÇÃO IDENTICA */}
       {filteredData.length > 0 && (
         <div className={styles.pagination}>
           <div style={{display:'flex', alignItems:'center', gap:'1rem'}}>

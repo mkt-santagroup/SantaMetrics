@@ -1,3 +1,5 @@
+/* src/components/CallDashboardOverview.module.css */
+
 .container {
   animation: fadeIn 0.4s ease-out;
   font-family: 'Montserrat', sans-serif;
@@ -9,7 +11,7 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* --- SECTION HEADER (ONDE FICAM OS FILTROS) --- */
+/* --- CABEÇALHO --- */
 .sectionHeader {
   display: flex;
   justify-content: space-between;
@@ -34,7 +36,7 @@
   margin: 0;
 }
 
-/* --- TOGGLE BUTTONS (1ª e 2ª Ligação) --- */
+/* --- ABAS (1ª e 2ª Ligação) --- */
 .toggleGroup {
   display: flex;
   background: var(--bg-hover);
@@ -67,13 +69,74 @@
   box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
 
-/* --- CHART CONTAINERS --- */
-.chartsGrid {
+/* --- GRID DE STATUS (CARDS ESTILO SMARTCHART) --- */
+.statsGrid {
   display: grid;
-  grid-template-columns: 1fr; /* Coluna única para focar na análise */
-  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
 }
 
+.statCard {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 1.25rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 10px -2px var(--shadow-color);
+}
+
+.statCard:hover {
+  transform: translateY(-2px);
+  border-color: var(--text-tertiary);
+}
+
+/* Indicador de ativo (Borda colorida embaixo ou lateral) */
+.activeIndicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  transition: all 0.3s;
+}
+
+.statLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+  letter-spacing: 0.05em;
+}
+
+.statValue {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.statPercent {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  margin-left: 6px;
+}
+
+/* Opacidade para cards inativos (filtro desligado) */
+.cardInactive {
+  opacity: 0.5;
+  filter: grayscale(0.8);
+}
+
+/* --- GRÁFICO --- */
 .chartContainer {
   background: var(--bg-card);
   padding: 1.5rem;
@@ -82,16 +145,13 @@
   box-shadow: 0 10px 15px -3px var(--shadow-color);
 }
 
-.chartTitle {
-  margin: 0 0 1.5rem 0;
-  font-size: 1rem;
-  color: var(--text-primary);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+.chartHeaderInfo {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  justify-content: flex-end;
+  margin-bottom: 1rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
 }
 
 /* Responsividade */

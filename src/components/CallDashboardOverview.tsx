@@ -4,7 +4,7 @@ import styles from './CallDashboardOverview.module.css';
 import SmartChart from './SmartChart';
 import DateRangePicker, { DateFilterType } from './DateRangePicker';
 import { 
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend 
 } from 'recharts';
 import { 
   parseISO, startOfDay, endOfDay, isWithinInterval, format, isValid, 
@@ -12,7 +12,7 @@ import {
 } from 'date-fns';
 import { useTheme } from '@/context/ThemeContext';
 import { 
-  Phone, PhoneOff, AlertCircle, XCircle, HelpCircle, Activity, BarChart3 
+  Phone, PhoneOff, AlertCircle, XCircle, HelpCircle, Activity, BarChart3, Send 
 } from 'lucide-react';
 
 interface CallDashboardOverviewProps {
@@ -21,7 +21,6 @@ interface CallDashboardOverviewProps {
   dateFilter: string; 
 }
 
-// 1. CONFIGURAÇÃO VISUAL
 const STATUS_CONFIG: Record<string, { label: string, color: string, icon: any }> = {
   'ANSWERED': { label: 'Atendida', color: '#10b981', icon: Phone }, 
   'NO ANSWER': { label: 'Sem Resposta', color: '#eab308', icon: PhoneMissedIcon }, 
@@ -31,12 +30,11 @@ const STATUS_CONFIG: Record<string, { label: string, color: string, icon: any }>
   'NO_ROUTE': { label: 'Sem Rota', color: '#6b7280', icon: AlertCircle }, 
   'ROUTE_UNAVAILABLE': { label: 'Rota Indisp.', color: '#4b5563', icon: AlertCircle }, 
   'DUPLICATED': { label: 'Duplicado', color: '#8b5cf6', icon: AlertCircle }, 
-  'SENT': { label: 'Enviada', color: '#52525b', icon: Phone }, 
+  'SENT': { label: 'Enviada', color: '#52525b', icon: Send }, 
   'UNKNOWN': { label: 'Desconhecido', color: '#1f2937', icon: HelpCircle },
   'NULL': { label: 'Sem Status', color: '#9ca3af', icon: HelpCircle }
 };
 
-// 2. ORDEM FIXA DOS CARDS
 const FIXED_CARD_ORDER = [
   'ANSWERED', 'BUSY', 'CONGESTION', 'NO ANSWER', 'DUPLICATED', 
   'FAILED', 'NO_ROUTE', 'ROUTE_UNAVAILABLE', 'SENT', 'UNKNOWN', 'NULL'
@@ -50,6 +48,7 @@ function PhoneMissedIcon(props: any) {
 
 export default function CallDashboardOverview({ data, chartFilter }: CallDashboardOverviewProps) {
   const { theme } = useTheme();
+  // NOTA: O filtro activeTab agora serve apenas para os CARDS lá de cima. O Gráfico sempre mostra TUDO.
   const [activeTab, setActiveTab] = useState<'call1' | 'call2'>('call1');
   const [bottomFilter, setBottomFilter] = useState<DateFilterType>({ label: 'Hoje', value: 'today', from: startOfDay(new Date()), to: endOfDay(new Date()) });
   const [visibleStatuses, setVisibleStatuses] = useState<string[]>([]); 
@@ -68,7 +67,7 @@ export default function CallDashboardOverview({ data, chartFilter }: CallDashboa
     });
   }, [data, bottomFilter]);
 
-  // --- 2. PROCESSAMENTO ---
+  // --- 2. PROCESSAMENTO (AGORA PROCESSA CALL 1 E CALL 2 SIMULTANEAMENTE) ---
   const { chartData, statusTotals, totalCalls, cardStatuses, chartStatuses } = useMemo(() => {
     let start = bottomFilter.from ? startOfDay(bottomFilter.from) : startOfDay(new Date());
     let end = bottomFilter.to ? endOfDay(bottomFilter.to) : endOfDay(new Date());
@@ -91,42 +90,60 @@ export default function CallDashboardOverview({ data, chartFilter }: CallDashboa
     let totalCount = 0;
 
     filteredData.forEach(item => {
-      let isCounted = false;
-      let rawStatus: string | null = null;
-      let hourStr: string | null = null;
+      // ---------------------------------------------------------
+      // LÓGICA PARA OS CARDS (Segue a Aba Selecionada)
+      // ---------------------------------------------------------
+      let isCountedForCard = false;
+      let cardStatus: string | null = null;
 
       if (activeTab === 'call1') {
         if (item.called === true || item.called2 === true) {
-          isCounted = true;
-          rawStatus = item.call1_status;
-          hourStr = item.call1_hour || item.created_at;
+          isCountedForCard = true;
+          cardStatus = item.call1_status;
         }
       } else {
         if (item.called3 === true || item.called4 === true) {
-          isCounted = true;
-          rawStatus = item.call2_status;
-          hourStr = item.call2_hour || item.created_at;
+          isCountedForCard = true;
+          cardStatus = item.call2_status;
         }
       }
 
-      if (isCounted && hourStr) {
-        let statusKey = rawStatus ? rawStatus.trim().toUpperCase() : 'NULL';
+      if (isCountedForCard) {
+        let statusKey = cardStatus ? cardStatus.trim().toUpperCase() : 'NULL';
         if (statusKey === '') statusKey = 'NULL';
+        
+        // Verifica data para totais
+        const itemDate = item.created_at ? parseISO(item.created_at) : null;
+        if (itemDate && (bottomFilter.value === 'lifetime' || isWithinInterval(itemDate, { start, end }))) {
+           totalCount++;
+           totals[statusKey] = (totals[statusKey] || 0) + 1;
+        }
+      }
 
-        const dateObj = parseISO(hourStr);
-        if (isValid(dateObj)) {
-          const userStart = bottomFilter.from ? startOfDay(bottomFilter.from) : startOfDay(new Date());
-          const userEnd = bottomFilter.to ? endOfDay(bottomFilter.to) : endOfDay(new Date());
-          
-          if (isWithinInterval(dateObj, { start: userStart, end: userEnd }) || bottomFilter.value === 'lifetime') {
-             totalCount++;
-             foundStatuses.add(statusKey);
-             totals[statusKey] = (totals[statusKey] || 0) + 1;
+      // ---------------------------------------------------------
+      // LÓGICA PARA O GRÁFICO (Sempre Processa TUDO)
+      // ---------------------------------------------------------
+      const itemDate = item.created_at ? parseISO(item.created_at) : null;
+      if (itemDate && isValid(itemDate)) {
+        const dateKey = format(itemDate, 'yyyy-MM-dd');
+        
+        if (dailyMap[dateKey]) {
+          // Processa CALL 1
+          if (item.called || item.called2) {
+            let s1 = item.call1_status ? item.call1_status.trim().toUpperCase() : 'NULL';
+            if (s1 === '') s1 = 'NULL';
+            foundStatuses.add(s1);
+            // Salva com prefixo call1_ para o gráfico saber diferenciar
+            dailyMap[dateKey][`call1_${s1}`] = (dailyMap[dateKey][`call1_${s1}`] || 0) + 1;
           }
 
-          const dateKey = format(dateObj, 'yyyy-MM-dd');
-          if (dailyMap[dateKey]) {
-            dailyMap[dateKey][statusKey] = (dailyMap[dateKey][statusKey] || 0) + 1;
+          // Processa CALL 2
+          if (item.called3 || item.called4) {
+            let s2 = item.call2_status ? item.call2_status.trim().toUpperCase() : 'NULL';
+            if (s2 === '') s2 = 'NULL';
+            foundStatuses.add(s2);
+            // Salva com prefixo call2_
+            dailyMap[dateKey][`call2_${s2}`] = (dailyMap[dateKey][`call2_${s2}`] || 0) + 1;
           }
         }
       }
@@ -134,17 +151,13 @@ export default function CallDashboardOverview({ data, chartFilter }: CallDashboa
 
     const sortedData = Object.values(dailyMap).sort((a: any, b: any) => a.rawDate.localeCompare(b.rawDate));
 
-    // Cards (Ordem Fixa)
+    // Ordenação dos Status
     const existingStatuses = Array.from(foundStatuses);
     const orderedForCards = FIXED_CARD_ORDER.filter(s => existingStatuses.includes(s));
-    existingStatuses.forEach(s => {
-      if (!FIXED_CARD_ORDER.includes(s)) orderedForCards.push(s);
-    });
+    existingStatuses.forEach(s => { if (!FIXED_CARD_ORDER.includes(s)) orderedForCards.push(s); });
 
-    // Gráfico (Ordem por Volume: MAIOR -> MENOR para ficar na base da pilha)
-    const orderedForChart = [...existingStatuses].sort((a, b) => {
-      return (totals[b] || 0) - (totals[a] || 0); // Decrescente
-    });
+    // Para o gráfico, usamos a mesma ordem dos cards para consistência de cores
+    const orderedForChart = [...orderedForCards]; 
 
     return { 
       chartData: sortedData, 
@@ -156,8 +169,8 @@ export default function CallDashboardOverview({ data, chartFilter }: CallDashboa
   }, [filteredData, activeTab, bottomFilter]);
 
   useEffect(() => {
-    setVisibleStatuses(prev => chartStatuses);
-  }, [chartStatuses.length, activeTab]);
+    setVisibleStatuses(chartStatuses);
+  }, [chartStatuses.length]); // Removi activeTab daqui para não resetar visualização ao trocar aba
 
   const toggleStatus = (status: string) => {
     setVisibleStatuses(prev => 
@@ -167,13 +180,62 @@ export default function CallDashboardOverview({ data, chartFilter }: CallDashboa
 
   const axisColor = theme === 'dark' ? '#9ca3af' : '#888';
   const gridColor = theme === 'dark' ? '#333' : '#f0f0f0';
-  const tooltipStyle = {
-    backgroundColor: theme === 'dark' ? '#171717' : '#fff',
-    border: theme === 'dark' ? '1px solid #333' : '1px solid #ddd',
-    borderRadius: '12px',
-    boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
-    color: theme === 'dark' ? '#fff' : '#000',
-    fontFamily: 'Montserrat, sans-serif'
+  
+  // Custom Tooltip para mostrar Call 1 vs Call 2
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      // Separa payload em Call 1 e Call 2
+      const call1Items = payload.filter((p: any) => p.dataKey.startsWith('call1_'));
+      const call2Items = payload.filter((p: any) => p.dataKey.startsWith('call2_'));
+
+      return (
+        <div style={{
+          backgroundColor: theme === 'dark' ? '#171717' : '#fff',
+          border: theme === 'dark' ? '1px solid #333' : '1px solid #ddd',
+          borderRadius: '12px',
+          boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+          color: theme === 'dark' ? '#fff' : '#000',
+          fontFamily: 'Montserrat, sans-serif',
+          padding: '12px',
+          minWidth: '200px'
+        }}>
+          <p style={{ fontWeight: '800', marginBottom: '8px', borderBottom: '1px solid #333', paddingBottom: '4px' }}>{label}</p>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            {/* Coluna Call 1 */}
+            <div>
+              <p style={{ fontSize: '0.7rem', fontWeight: '700', textTransform: 'uppercase', color: '#9ca3af', marginBottom: '6px' }}>1ª Ligação</p>
+              {call1Items.map((item: any) => {
+                 const originalStatus = item.dataKey.replace('call1_', '');
+                 const config = STATUS_CONFIG[originalStatus] || { label: originalStatus };
+                 return (
+                   <div key={item.dataKey} style={{ color: item.color, fontSize: '0.8rem', fontWeight: '600', marginBottom: '2px' }}>
+                     {config.label}: {item.value}
+                   </div>
+                 )
+              })}
+              {call1Items.length === 0 && <span style={{fontSize:'0.75rem', opacity:0.5}}>-</span>}
+            </div>
+
+            {/* Coluna Call 2 */}
+            <div>
+              <p style={{ fontSize: '0.7rem', fontWeight: '700', textTransform: 'uppercase', color: '#9ca3af', marginBottom: '6px' }}>2ª Ligação</p>
+              {call2Items.map((item: any) => {
+                 const originalStatus = item.dataKey.replace('call2_', '');
+                 const config = STATUS_CONFIG[originalStatus] || { label: originalStatus };
+                 return (
+                   <div key={item.dataKey} style={{ color: item.color, fontSize: '0.8rem', fontWeight: '600', marginBottom: '2px' }}>
+                     {config.label}: {item.value}
+                   </div>
+                 )
+              })}
+              {call2Items.length === 0 && <span style={{fontSize:'0.75rem', opacity:0.5}}>-</span>}
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return null;
   };
 
   return (
@@ -185,8 +247,8 @@ export default function CallDashboardOverview({ data, chartFilter }: CallDashboa
         <div className={styles.leftControls}>
           <h3 className={styles.sectionTitle}>Análise Técnica de Disparos</h3>
           <div className={styles.toggleGroup}>
-            <button className={`${styles.toggleBtn} ${activeTab === 'call1' ? styles.activeToggle : ''}`} onClick={() => setActiveTab('call1')}>1ª Ligação (Call 1/2)</button>
-            <button className={`${styles.toggleBtn} ${activeTab === 'call2' ? styles.activeToggle : ''}`} onClick={() => setActiveTab('call2')}>2ª Ligação (Call 3/4)</button>
+            <button className={`${styles.toggleBtn} ${activeTab === 'call1' ? styles.activeToggle : ''}`} onClick={() => setActiveTab('call1')}>Dados dos Cards: 1ª Ligação</button>
+            <button className={`${styles.toggleBtn} ${activeTab === 'call2' ? styles.activeToggle : ''}`} onClick={() => setActiveTab('call2')}>Dados dos Cards: 2ª Ligação</button>
           </div>
         </div>
         <DateRangePicker currentFilter={bottomFilter} onFilterChange={setBottomFilter} />
@@ -195,7 +257,7 @@ export default function CallDashboardOverview({ data, chartFilter }: CallDashboa
       <div className={styles.statsGrid}>
         <div className={styles.statCard} style={{ cursor: 'default', borderColor: theme === 'dark' ? '#333' : '#e5e7eb' }}>
            <div className={styles.activeIndicator} style={{ background: theme === 'dark' ? '#fff' : '#000' }} />
-           <div className={styles.statLabel}><BarChart3 size={14} /> Total Disparos</div>
+           <div className={styles.statLabel}><BarChart3 size={14} /> Total (Aba Atual)</div>
            <div className={styles.statValue}>{totalCalls}</div>
         </div>
         {cardStatuses.map(status => {
@@ -215,55 +277,87 @@ export default function CallDashboardOverview({ data, chartFilter }: CallDashboa
       </div>
 
       <div className={styles.chartContainer}>
-        <div className={styles.chartHeaderInfo}>Visualizando {visibleStatuses.length} status selecionados</div>
         <div style={{ width: '100%', height: 400 }}>
           <ResponsiveContainer>
-            <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-              <defs>
-                {chartStatuses.map((status) => {
-                  const config = STATUS_CONFIG[status] || { color: '#888' };
-                  return (
-                    <linearGradient key={status} id={`grad-${status}`} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={config.color} stopOpacity={0.6}/>
-                      <stop offset="95%" stopColor={config.color} stopOpacity={0}/>
-                    </linearGradient>
-                  );
-                })}
-              </defs>
+            <BarChart 
+              data={chartData} 
+              margin={{ top: 20, right: 10, left: -20, bottom: 0 }}
+              barGap={2} // Espaço pequeno entre as barras do mesmo dia
+            >
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridColor} />
-              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: axisColor, fontSize: 11, fontWeight: 600 }} dy={10} minTickGap={30} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fill: axisColor, fontSize: 11 }} />
-              <Tooltip 
-                contentStyle={tooltipStyle}
-                labelStyle={{color: theme === 'dark' ? '#fff' : '#000', fontWeight: 'bold', marginBottom:'8px'}}
-                cursor={{ stroke: theme === 'dark' ? '#555' : '#ccc', strokeWidth: 1 }}
-                formatter={(value: number, name: string) => {
-                    const config = STATUS_CONFIG[name] || { label: name };
-                    return [value, config.label];
-                }}
-                itemSorter={(item) => -item.value!}
+              
+              <XAxis 
+                dataKey="name" 
+                axisLine={false} 
+                tickLine={false} 
+                tick={{ fill: axisColor, fontSize: 11, fontWeight: 600 }} 
+                dy={10} 
+                minTickGap={30} 
               />
-              {/* O segredo do gráfico empilhado PADRÃO: stackId="1" */}
+              <YAxis 
+                axisLine={false} 
+                tickLine={false} 
+                tick={{ fill: axisColor, fontSize: 11 }} 
+              />
+              
+              <Tooltip content={<CustomTooltip />} cursor={{ fill: theme === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)' }} />
+
+              <Legend 
+                verticalAlign="top" 
+                height={36} 
+                iconType="circle"
+                content={() => (
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginBottom: '10px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{ width: 10, height: 10, background: '#fff', borderRadius: '50%', opacity: 0.8 }}></div> 1ª Ligação
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{ width: 10, height: 10, background: '#fff', borderRadius: '50%', opacity: 0.4 }}></div> 2ª Ligação
+                    </div>
+                  </div>
+                )}
+              />
+
+              {/* STACK A: CALL 1 */}
               {chartStatuses.map((status) => {
                 if (!visibleStatuses.includes(status)) return null;
                 const config = STATUS_CONFIG[status] || { color: '#888', label: status };
                 
                 return (
-                  <Area 
-                    key={status} 
-                    type="monotone" 
-                    dataKey={status} 
+                  <Bar 
+                    key={`call1-${status}`} 
+                    dataKey={`call1_${status}`} 
                     name={status} 
-                    stackId="1" // <--- ISSO DEIXA IGUAL AO SMARTCHART (EMPILHADO)
-                    stroke={config.color} 
-                    fill={`url(#grad-${status})`}
-                    strokeWidth={2}
-                    animationDuration={800}
-                    connectNulls={true} 
+                    stackId="a" // EMPILHA NA ESQUERDA
+                    fill={config.color} 
+                    radius={[0, 0, 0, 0]} 
+                    barSize={24} // Barra mais fina para caber duas
+                    animationDuration={1000}
                   />
                 );
               })}
-            </AreaChart>
+
+              {/* STACK B: CALL 2 */}
+              {chartStatuses.map((status) => {
+                if (!visibleStatuses.includes(status)) return null;
+                const config = STATUS_CONFIG[status] || { color: '#888', label: status };
+                
+                return (
+                  <Bar 
+                    key={`call2-${status}`} 
+                    dataKey={`call2_${status}`} 
+                    name={status} 
+                    stackId="b" // EMPILHA NA DIREITA
+                    fill={config.color} 
+                    fillOpacity={0.6} // Call 2 um pouco mais transparente para diferenciar
+                    radius={[0, 0, 0, 0]} 
+                    barSize={24}
+                    animationDuration={1000}
+                  />
+                );
+              })}
+
+            </BarChart>
           </ResponsiveContainer>
         </div>
       </div>

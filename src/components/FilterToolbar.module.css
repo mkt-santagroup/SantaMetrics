@@ -1,0 +1,183 @@
+.toolbarContainer {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding: 0 2rem; /* Alinhado com a tabela */
+  font-family: 'Montserrat', sans-serif;
+}
+
+/* BUSCA */
+.searchWrapper {
+  flex: 1;
+  max-width: 400px;
+  background: var(--bg-hover);
+  border: 1px solid transparent;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  height: 44px;
+  transition: all 0.2s;
+}
+
+.searchWrapper:focus-within {
+  background: var(--bg-card);
+  border-color: var(--text-primary);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.searchIcon { color: var(--text-tertiary); }
+.searchInput {
+  border: none;
+  background: transparent;
+  flex: 1;
+  margin-left: 8px;
+  color: var(--text-primary);
+  outline: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+.clearSearch {
+  background: none; border: none; cursor: pointer; color: var(--text-tertiary);
+}
+
+/* FILTRO (Dropdown) */
+.filterWrapper {
+  position: relative;
+}
+
+.filterTrigger {
+  height: 44px;
+  padding: 0 20px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  color: var(--text-primary);
+  font-weight: 700;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.filterTrigger:hover {
+  background: var(--bg-hover);
+}
+
+.filterTrigger.active {
+  border-color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.badge {
+  background: #ef4444;
+  color: white;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 0.65rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: absolute;
+  top: -6px;
+  right: -6px;
+}
+
+/* O MENU FLUTUANTE */
+.dropdown {
+  position: absolute;
+  top: 110%;
+  right: 0;
+  width: 280px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  box-shadow: 0 20px 50px -10px rgba(0,0,0,0.3);
+  padding: 16px;
+  z-index: 100;
+  animation: slideDown 0.2s ease;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sectionTitle {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.optionsGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.optionBtn {
+  background: var(--bg-hover);
+  border: 1px solid transparent;
+  padding: 8px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.optionBtn:hover { color: var(--text-primary); }
+
+.optionBtn.selected {
+  background: var(--text-primary); /* Inverte no dark/light */
+  color: var(--bg-card);
+  font-weight: 700;
+}
+
+.divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: 16px 0;
+}
+
+.optionsList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.radioLabel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+}
+
+.radioLabel:hover {
+  background: var(--bg-hover);
+}
+
+.radioLabel input {
+  accent-color: var(--text-primary);
+  width: 16px; 
+  height: 16px;
+}

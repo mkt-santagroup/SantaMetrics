@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react'; // Adicionado useRef
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { CallLead } from '@/types/callLeads';
 import { format, isSameDay, subDays, isAfter } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -16,7 +16,7 @@ interface CallLeadsTableProps {
 // --- MAPA DE TRADUÇÃO E CORES ---
 const STATUS_CONFIG: Record<string, { label: string, color: string, bg: string, icon: any }> = {
   'ANSWERED': { label: 'Atendida', color: '#16a34a', bg: 'rgba(22, 163, 74, 0.1)', icon: Phone },
-  'NO ANSWER': { label: 'Não atendida', color: '#ca8a04', bg: 'rgba(202, 138, 4, 0.1)', icon: PhoneOff },
+  'NO ANSWER': { label: 'Sem Resposta', color: '#ca8a04', bg: 'rgba(202, 138, 4, 0.1)', icon: PhoneOff },
   'BUSY': { label: 'Ocupado', color: '#ea580c', bg: 'rgba(234, 88, 12, 0.1)', icon: PhoneOff },
   'FAILED': { label: 'Falhou', color: '#dc2626', bg: 'rgba(220, 38, 38, 0.1)', icon: AlertCircle },
   'CONGESTION': { label: 'Congestionado', color: '#dc2626', bg: 'rgba(220, 38, 38, 0.1)', icon: AlertCircle },
@@ -32,11 +32,9 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   
-  // Estado para o Dropdown Customizado
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Fecha o dropdown se clicar fora
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -80,7 +78,6 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
     });
   }, [data, searchTerm, statusFilter, dateFilter]);
 
-  // Resetar página ao filtrar
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, dateFilter, itemsPerPage]);
@@ -92,9 +89,16 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
     return filteredData.slice(startIndex, startIndex + itemsPerPage);
   }, [filteredData, currentPage, itemsPerPage]);
 
+  // Formata Data/Hora Geral
   const formatData = (dateStr: string | null) => {
     if (!dateStr) return '-';
     return format(new Date(dateStr), "dd/MM HH:mm", { locale: ptBR });
+  };
+
+  // Formata Apenas Hora (para as colunas de Call)
+  const formatHora = (dateStr: string | null) => {
+    if (!dateStr) return null;
+    return format(new Date(dateStr), "HH:mm", { locale: ptBR });
   };
 
   const formatTempo = (minutos: number | null) => {
@@ -111,37 +115,47 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
     return <span style={{color: 'var(--text-tertiary)'}}>-</span>;
   };
 
-  // Componente de Status
-  const StatusBadge = ({ status }: { status: string | null }) => {
-    if (!status) return <span style={{color: 'var(--text-tertiary)', fontSize: '0.85rem'}}>-</span>;
+  // Componente de Status com Hora Embaixo
+  const CallStatusCell = ({ status, timeStr }: { status: string | null, timeStr: string | null }) => {
+    if (!status && !timeStr) return <span style={{color: 'var(--text-tertiary)', fontSize: '0.85rem'}}>-</span>;
     
-    const config = STATUS_CONFIG[status] || { 
-      label: status, 
+    const config = STATUS_CONFIG[status || ''] || { 
+      label: status || 'Desconhecido', 
       color: 'var(--text-primary)', 
       bg: 'var(--bg-hover)', 
       icon: null 
     };
 
     const Icon = config.icon;
+    const horaFormatada = formatHora(timeStr);
 
     return (
-      <span style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '6px',
-        padding: '4px 10px',
-        borderRadius: '6px',
-        backgroundColor: config.bg,
-        color: config.color,
-        fontSize: '0.75rem',
-        fontWeight: 700,
-        textTransform: 'uppercase',
-        letterSpacing: '0.05em',
-        border: `1px solid ${config.color}20` 
-      }}>
-        {Icon && <Icon size={12} strokeWidth={3} />}
-        {config.label}
-      </span>
+      <div style={{display:'flex', flexDirection:'column', alignItems:'flex-start', gap:'4px'}}>
+        {status && (
+          <span style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '4px 10px',
+            borderRadius: '6px',
+            backgroundColor: config.bg,
+            color: config.color,
+            fontSize: '0.75rem',
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+            border: `1px solid ${config.color}20` 
+          }}>
+            {Icon && <Icon size={12} strokeWidth={3} />}
+            {config.label}
+          </span>
+        )}
+        {horaFormatada && (
+          <span style={{fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginLeft: '4px'}}>
+            às {horaFormatada}
+          </span>
+        )}
+      </div>
     );
   };
 
@@ -173,14 +187,14 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
               onClick={() => setStatusFilter('online')}
               style={{ color: statusFilter === 'online' ? '#16a34a' : '' }}
             >
-              Logou Hoje
+              Logou Pós Call
             </button>
             <button 
               className={`${styles.filterTab} ${statusFilter === 'offline' ? styles.filterTabActive : ''}`}
               onClick={() => setStatusFilter('offline')}
               style={{ color: statusFilter === 'offline' ? '#dc2626' : '' }}
             >
-              Offline Hoje
+              Não Logou
             </button>
           </div>
         </div>
@@ -192,7 +206,7 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
             <th>ID</th>
             <th>Nome / WhatsApp</th>
             <th>Tempo Jogo</th>
-            <th>Login Hoje?</th>
+            <th>Pós Call</th> {/* Alterado de "Login Hoje" */}
             <th>1ª Ligação</th>
             <th>2ª Ligação</th>
             <th>Último Login</th>
@@ -216,9 +230,20 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
                   {formatTempo(item.Tempo_de_jogo)}
                 </div>
               </td>
+              
+              {/* Coluna Pós Call (login_no_dia) */}
               <td><BooleanBadge value={item.login_no_dia} /></td>
-              <td><StatusBadge status={item.call1_status} /></td>
-              <td><StatusBadge status={item.call2_status} /></td>
+              
+              {/* Coluna 1ª Ligação (Status + Hora) */}
+              <td>
+                <CallStatusCell status={item.call1_status} timeStr={item.call1_hour} />
+              </td>
+              
+              {/* Coluna 2ª Ligação (Status + Hora) */}
+              <td>
+                <CallStatusCell status={item.call2_status} timeStr={item.call2_hour} />
+              </td>
+
               <td className={styles.dateCell} style={{fontSize:'0.85rem'}}>
                 {formatData(item.Last_login)}
               </td>
@@ -230,7 +255,7 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
               <td colSpan={7} className={styles.emptyState} style={{ padding: '4rem' }}>
                 <div style={{display:'flex', flexDirection:'column', alignItems:'center', gap:'1rem'}}>
                   <Filter size={40} strokeWidth={1} />
-                  <span>Nenhum registro encontrado para este período/filtro.</span>
+                  <span>Nenhum registro encontrado.</span>
                 </div>
               </td>
             </tr>
@@ -245,7 +270,6 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
               Mostrando <b>{paginatedData.length}</b> de <b>{filteredData.length}</b>
             </span>
             
-            {/* DROPDOWN CUSTOMIZADO */}
             <div className={styles.customSelectContainer} ref={dropdownRef}>
               <button 
                 className={styles.customSelectTrigger} 

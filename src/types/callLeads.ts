@@ -7,11 +7,11 @@ export interface CallLead {
   whatsapp: string | null;
   login_no_dia: boolean | null;
   
-  // Booleanos (mantive caso precise pra lógica, mas a tabela vai usar os status abaixo)
+  // Booleanos antigos
   call_1: boolean | null;
   call_2: boolean | null;
   
-  // Lógica de tentativas (que fizemos antes)
+  // Tentativas
   called: boolean | null;
   called2: boolean | null;
   called3: boolean | null;
@@ -21,7 +21,11 @@ export interface CallLead {
   sms2: string | null;
   created_at: string | null;
 
-  // --- NOVOS CAMPOS DE STATUS (TEXTO) ---
+  // Status de texto
   call1_status: string | null;
   call2_status: string | null;
+
+  // --- NOVOS CAMPOS DE HORA ---
+  call1_hour: string | null;
+  call2_hour: string | null;
 }

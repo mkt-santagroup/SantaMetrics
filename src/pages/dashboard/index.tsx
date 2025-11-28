@@ -1,9 +1,11 @@
-import { useEffect, useState, useMemo } from 'react';
+// src/pages/dashboard/index.tsx
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Cookies from 'js-cookie';
 import { supabase } from '@/lib/supabaseClient';
 import { Lead } from '@/types/leads';
 import { CallLead } from '@/types/callLeads';
+// CORREÇÃO: O CSS está na mesma pasta, então o caminho é apenas ./
 import styles from './page.module.css'; 
 
 import LeadsTable from '@/components/LeadsTable';
@@ -15,7 +17,7 @@ import CallDashboardOverview from '@/components/CallDashboardOverview';
 import TriggerCallModal from '@/components/TriggerCallModal';
 import DateRangePicker, { DateFilterType } from '@/components/DateRangePicker'; 
 
-import { startOfDay, endOfDay } from 'date-fns'; // <--- IMPORTANTE: endOfDay
+import { startOfDay, endOfDay } from 'date-fns'; 
 import { Wifi, WifiOff, PhoneOutgoing } from 'lucide-react';
 
 export default function Dashboard() {
@@ -29,19 +31,96 @@ export default function Dashboard() {
   const [isConnected, setIsConnected] = useState(false);
   const [showTriggerModal, setShowTriggerModal] = useState(false);
 
-  // --- AQUI ESTÁ A DEFINIÇÃO PADRÃO ---
-  // Certifique-se que está EXATAMENTE assim:
+  // --- FILTRO DE DATA PADRÃO (HOJE) ---
   const [chartDateFilter, setChartDateFilter] = useState<DateFilterType>({
     label: 'Hoje',
     value: 'today',
-    from: startOfDay(new Date()), // Início de hoje (00:00)
-    to: endOfDay(new Date())      // Fim de hoje (23:59) -> IMPORTANTE USAR endOfDay
+    from: startOfDay(new Date()), 
+    to: endOfDay(new Date())      
   });
 
-  // ... (RESTO DO CÓDIGO PERMANECE IGUAL) ...
-  // ... useEffects de Auth e Fetch ...
-  
-  // Apenas copiando o return para garantir que não falta nada
+  // --- 1. AUTH CHECK ---
+  useEffect(() => {
+    const token = Cookies.get('santa_auth');
+    if (token !== 'logado') router.push('/');
+  }, [router]);
+
+  // --- 2. FETCH DATA & REALTIME ---
+  useEffect(() => {
+    const token = Cookies.get('santa_auth');
+    if (token !== 'logado') return;
+
+    fetchLeads();
+    fetchCallLeads();
+
+    // Canal WPP Leads
+    const channelLeads = supabase.channel('realtime-leads')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'WPP-UNIVERSO_RP-LEADS' }, (payload) => handleRealtimeChange(payload, setLeads))
+      .subscribe((status) => status === 'SUBSCRIBED' ? setIsConnected(true) : setIsConnected(false));
+
+    // Canal Call Leads
+    const channelCall = supabase.channel('realtime-call')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'CALL-UNIVESO-RP-LEADS' }, (payload) => handleRealtimeCallChange(payload))
+      .subscribe();
+
+    return () => { 
+      supabase.removeChannel(channelLeads); 
+      supabase.removeChannel(channelCall);
+    };
+  }, []);
+
+  const handleRealtimeChange = (payload: any, setFn: React.Dispatch<React.SetStateAction<any[]>>) => {
+    const newRecord = payload.new;
+    const oldRecord = payload.old;
+    if (payload.eventType === 'INSERT') setFn((prev) => [newRecord, ...prev]);
+    else if (payload.eventType === 'UPDATE') setFn((prev) => prev.map((item) => (item.id === newRecord.id ? newRecord : item)));
+    else if (payload.eventType === 'DELETE') setFn((prev) => prev.filter((item) => item.id !== oldRecord.id));
+  };
+
+  const handleRealtimeCallChange = (payload: any) => {
+    const newRecord = payload.new as CallLead;
+    const oldRecord = payload.old as CallLead;
+    setCallLeads((prev) => {
+      if (payload.eventType === 'INSERT') return [newRecord, ...prev];
+      if (payload.eventType === 'UPDATE') return prev.map(item => item.ID === newRecord.ID ? newRecord : item);
+      if (payload.eventType === 'DELETE') return prev.filter(item => item.ID !== oldRecord.ID);
+      return prev;
+    });
+  };
+
+  // --- FUNÇÕES DE BUSCA SEGURAS (TRY/CATCH) ---
+  async function fetchLeads() {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('WPP-UNIVERSO_RP-LEADS')
+        .select('*')
+        .order('created_at', { ascending: false });
+        
+      if (error) throw error;
+      if (data) setLeads(data);
+    } catch (err) {
+      console.error('Erro ao buscar leads WPP:', err);
+    } finally {
+      // Garante que o loading pare mesmo com erro
+      setLoading(false);
+    }
+  }
+
+  async function fetchCallLeads() {
+    try {
+      const { data, error } = await supabase
+        .from('CALL-UNIVESO-RP-LEADS')
+        .select('*')
+        .order('ID', { ascending: false });
+
+      if (error) throw error;
+      if (data) setCallLeads(data as CallLead[]);
+    } catch (err) {
+      console.error('Erro ao buscar leads CALL:', err);
+    }
+  }
+
   return (
     <div className={styles.mainWrapper}>
       <Navbar currentTab={currentTab} onTabChange={setCurrentTab} />
@@ -70,6 +149,7 @@ export default function Dashboard() {
           </div>
 
           <div className={styles.actions} style={{ gap: '1rem', alignItems: 'center' }}>
+            
             {currentTab === 'call' && (
               <>
                 <button 
@@ -84,6 +164,7 @@ export default function Dashboard() {
                   <PhoneOutgoing size={16} /> Disparar Ligações
                 </button>
 
+                {/* DATE PICKER (Controla o gráfico e cards) */}
                 <DateRangePicker 
                   currentFilter={chartDateFilter} 
                   onFilterChange={setChartDateFilter} 
@@ -109,11 +190,14 @@ export default function Dashboard() {
               
               {currentTab === 'call' && (
                 <>
+                  {/* Dashboard: Recebe filtro dinâmico */}
                   <CallDashboardOverview 
                     data={callLeads} 
                     chartFilter={chartDateFilter} 
                     dateFilter="lifetime" 
                   />
+                  
+                  {/* Tabela: Sempre mostra tudo (Lifetime) */}
                   <CallLeadsTable 
                     data={callLeads} 
                     dateFilter="lifetime" 

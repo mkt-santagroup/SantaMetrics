@@ -4,7 +4,7 @@ import Cookies from 'js-cookie';
 import { supabase } from '@/lib/supabaseClient';
 import { Lead } from '@/types/leads';
 import { CallLead } from '@/types/callLeads';
-import styles from './dashboard/page.module.css'; 
+import styles from './page.module.css'; 
 
 import LeadsTable from '@/components/LeadsTable';
 import CallLeadsTable from '@/components/CallLeadsTable';

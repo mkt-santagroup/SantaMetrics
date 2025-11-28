@@ -7,7 +7,7 @@ import {
 import { 
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend 
 } from 'recharts';
-import { isSameDay, subDays, isAfter } from 'date-fns';
+import { isSameDay, subDays, isAfter, differenceInDays, parseISO } from 'date-fns';
 import { useTheme } from '@/context/ThemeContext';
 
 interface CallDashboardOverviewProps {
@@ -15,18 +15,18 @@ interface CallDashboardOverviewProps {
   dateFilter: string;
 }
 
-// Mapeamento de Status para Labels amigáveis e Cores (Mesmo padrão da Tabela)
+// AQUI É STATUS_MAP
 const STATUS_MAP: Record<string, { label: string, color: string }> = {
-  'ANSWERED': { label: 'Atendidas', color: '#10b981' }, // Verde
-  'NO ANSWER': { label: 'Sem Resposta', color: '#eab308' }, // Amarelo/Ouro
-  'BUSY': { label: 'Ocupado', color: '#f97316' }, // Laranja
-  'FAILED': { label: 'Falhou', color: '#ef4444' }, // Vermelho
-  'CONGESTION': { label: 'Congestionado', color: '#dc2626' }, // Vermelho Escuro
-  'NO_ROUTE': { label: 'Sem Rota', color: '#6b7280' }, // Cinza
-  'ROUTE_UNAVAILABLE': { label: 'Rota Indisp.', color: '#4b5563' }, // Cinza Escuro
-  'DUPLICATED': { label: 'Duplicado', color: '#374151' }, // Cinza Quase Preto
-  // Caso venha null ou vazio
-  'PENDING': { label: 'Pendente', color: '#1f2937' } 
+  'ANSWERED': { label: 'Atendidas', color: '#10b981' }, 
+  'NO ANSWER': { label: 'Sem Resposta', color: '#eab308' }, 
+  'BUSY': { label: 'Ocupado', color: '#f97316' }, 
+  'FAILED': { label: 'Falhou', color: '#ef4444' }, 
+  'CONGESTION': { label: 'Congestionado', color: '#dc2626' }, 
+  'NO_ROUTE': { label: 'Sem Rota', color: '#6b7280' }, 
+  'ROUTE_UNAVAILABLE': { label: 'Rota Indisp.', color: '#4b5563' }, 
+  'DUPLICATED': { label: 'Duplicado', color: '#374151' }, 
+  'PENDING': { label: 'Pendente', color: '#1f2937' },
+  'SENT': { label: 'Enviada', color: '#6b7280' } 
 };
 
 export default function CallDashboardOverview({ data, dateFilter }: CallDashboardOverviewProps) {
@@ -55,43 +55,53 @@ export default function CallDashboardOverview({ data, dateFilter }: CallDashboar
 
   // --- 2. CÁLCULOS DOS CARDS ---
   const totalLeads = filteredData.length;
-  const logadosHoje = filteredData.filter(i => i.login_no_dia === true).length;
-  const naoLogados = totalLeads - logadosHoje;
+
+  const logadosPosCall = filteredData.filter(item => {
+    if (!item.pos_login_static) return false;
+    
+    // Se não teve ligação, é "Antes", então não conta aqui
+    if (!item.call1_hour && !item.call2_hour) return false;
+
+    const posLoginDate = parseISO(item.pos_login_static);
+    const callReferenceStr = item.call1_hour || item.call2_hour;
+    
+    if (callReferenceStr) {
+      const callDate = parseISO(callReferenceStr);
+      const diffDays = differenceInDays(posLoginDate, callDate);
+      if (diffDays > 7) return false; 
+    }
+
+    return true;
+  }).length;
+
+  const naoLogados = totalLeads - logadosPosCall;
   
-  // Total de Tentativas (Geral)
   const totalCallsFeitas = filteredData.reduce((acc, curr) => {
     let count = 0;
-    if (curr.called === true) count++;
-    if (curr.called2 === true) count++;
-    if (curr.called3 === true) count++; // Considerando que called3/4 também existam
-    if (curr.called4 === true) count++;
+    if (curr.call1_hour) count++; 
+    if (curr.call2_hour) count++;
     return acc + count;
   }, 0);
 
-  // --- 3. DADOS GRÁFICO PIZZA (Mantido) ---
+  // --- 3. DADOS GRÁFICOS ---
   const dataPizza = [
-    { name: 'Logaram', value: logadosHoje, color: '#10b981' }, 
+    { name: 'Logaram Pós Call', value: logadosPosCall, color: '#10b981' }, 
     { name: 'Não Logaram', value: naoLogados, color: '#ef4444' },
   ];
 
-  // --- 4. DADOS GRÁFICO DE BARRAS (DETALHADO) ---
-  // Função auxiliar para contar status
   const getStatusCounts = (callNumber: 1 | 2) => {
     const counts: Record<string, number> = {};
-    
-    // Inicializa contadores com 0 para garantir ordem ou existência
     Object.values(STATUS_MAP).forEach(s => counts[s.label] = 0);
 
     filteredData.forEach(item => {
-      // Pega o status bruto (ex: 'NO ANSWER')
-      const rawStatus = callNumber === 1 ? item.call1_status : item.call2_status;
-      
-      // Se não tiver status, ignoramos ou marcamos pendente
+      let rawStatus = callNumber === 1 ? item.call1_status : item.call2_status;
+      const hasHour = callNumber === 1 ? item.call1_hour : item.call2_hour;
+
+      if (!rawStatus && hasHour) rawStatus = 'SENT';
       if (!rawStatus) return; 
 
-      // Mapeia para o label bonito (ex: 'Sem Resposta')
+      // CORREÇÃO: Usar STATUS_MAP em vez de STATUS_CONFIG
       const config = STATUS_MAP[rawStatus] || STATUS_MAP['PENDING'];
-      
       counts[config.label] = (counts[config.label] || 0) + 1;
     });
 
@@ -104,7 +114,7 @@ export default function CallDashboardOverview({ data, dateFilter }: CallDashboar
   const dataBarra = [
     { 
       name: '1ª Ligação', 
-      ...countsCall1, // Espalha as chaves: { "Atendidas": 10, "Sem Resposta": 5, ... }
+      ...countsCall1, 
       total: Object.values(countsCall1).reduce((a, b) => a + b, 0)
     },
     { 
@@ -114,21 +124,14 @@ export default function CallDashboardOverview({ data, dateFilter }: CallDashboar
     },
   ];
 
-  // Lista de chaves para criar as barras (ignorando as que não queremos plotar ou total)
-  const barKeys = Object.values(STATUS_MAP).map(s => s.label);
-
-  // --- COMPONENTES AUXILIARES ---
-  
-  // Tooltip customizado que lista tudo que for > 0
+  // Componentes auxiliares
   const CustomBarTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
         <div className={styles.customTooltip} style={{backgroundColor: tooltipBg, borderColor: theme === 'dark' ? '#333' : '#ddd'}}>
           <div className={styles.tooltipTitle} style={{color: tooltipText}}>{label}</div>
-          
-          {/* Itera sobre os itens do payload (que o Recharts já ordena/filtra) */}
           {payload.map((entry: any, index: number) => {
-            if (entry.value === 0) return null; // Não mostra status zerados
+            if (entry.value === 0) return null; 
             return (
               <div key={index} className={styles.tooltipRow}>
                 <span style={{color: entry.color, fontWeight: 600}}>{entry.name}:</span>
@@ -136,7 +139,6 @@ export default function CallDashboardOverview({ data, dateFilter }: CallDashboar
               </div>
             );
           })}
-
           <div className={styles.tooltipDivider}></div>
           <div className={styles.tooltipFooter} style={{color: tooltipText}}>
             <span>Total disparos:</span>
@@ -157,7 +159,6 @@ export default function CallDashboardOverview({ data, dateFilter }: CallDashboar
   return (
     <div className={styles.container}>
       
-      {/* GRID DE 4 CARDS */}
       <div className={styles.gridCards}>
         <div className={styles.card}>
           <div className={styles.cardHeader}>
@@ -172,12 +173,12 @@ export default function CallDashboardOverview({ data, dateFilter }: CallDashboar
 
         <div className={styles.card}>
           <div className={styles.cardHeader}>
-            <span className={styles.cardLabel}>Logaram Hoje</span>
+            <span className={styles.cardLabel}>Logaram Pós Call</span>
             <CardIcon icon={UserCheck} bg="#d1fae5" color="#059669" />
           </div>
-          <div className={styles.cardValue}>{logadosHoje}</div>
+          <div className={styles.cardValue}>{logadosPosCall}</div>
           <span className={styles.cardSub} style={{color: '#059669'}}>
-            {totalLeads > 0 ? ((logadosHoje/totalLeads)*100).toFixed(0) : 0}% conversão
+            {totalLeads > 0 ? ((logadosPosCall/totalLeads)*100).toFixed(0) : 0}% conversão real
           </span>
         </div>
 
@@ -206,9 +207,9 @@ export default function CallDashboardOverview({ data, dateFilter }: CallDashboar
 
       <div className={styles.chartsGrid}>
         
-        {/* GRÁFICO DE PIZZA (LOGIN) */}
+        {/* GRÁFICO DE PIZZA */}
         <div className={styles.chartContainer}>
-          <h3 className={styles.chartTitle}>Status de Login (Hoje)</h3>
+          <h3 className={styles.chartTitle}>Status de Login (Pós Call)</h3>
           <div style={{ width: '100%', height: 250 }}>
             <ResponsiveContainer>
               <PieChart>
@@ -226,11 +227,9 @@ export default function CallDashboardOverview({ data, dateFilter }: CallDashboar
                 </Pie>
                 <Tooltip 
                   contentStyle={{
-                    borderRadius:'12px', 
-                    border:'none', 
+                    borderRadius:'12px', border:'none', 
                     boxShadow:'0 10px 25px rgba(0,0,0,0.2)', 
-                    backgroundColor: tooltipBg, 
-                    color: tooltipText
+                    backgroundColor: tooltipBg, color: tooltipText
                   }} 
                 />
                 <Legend verticalAlign="bottom" height={36}/>
@@ -239,7 +238,7 @@ export default function CallDashboardOverview({ data, dateFilter }: CallDashboar
           </div>
         </div>
 
-        {/* GRÁFICO DE BARRAS (DETALHADO POR STATUS) */}
+        {/* GRÁFICO DE BARRAS */}
         <div className={styles.chartContainer}>
           <h3 className={styles.chartTitle}>Performance Detalhada de Ligações</h3>
           <div style={{ width: '100%', height: 250 }}>
@@ -255,23 +254,18 @@ export default function CallDashboardOverview({ data, dateFilter }: CallDashboar
                   axisLine={false}
                   tickLine={false}
                 />
-                
                 <Tooltip cursor={{fill: 'transparent'}} content={<CustomBarTooltip />} />
-                
                 <Legend iconType="circle" wrapperStyle={{ fontSize: '0.75rem', paddingTop: '10px' }}/>
-                
-                {/* GERA AS BARRAS DINAMICAMENTE PARA CADA STATUS */}
                 {Object.values(STATUS_MAP).map((statusConfig) => (
                   <Bar 
                     key={statusConfig.label}
                     dataKey={statusConfig.label}
-                    stackId="a" // Empilha todas juntas
+                    stackId="a"
                     fill={statusConfig.color}
-                    radius={[0, 4, 4, 0]} // Arredonda só a ponta final
+                    radius={[0, 4, 4, 0]}
                     barSize={32}
                   />
                 ))}
-
               </BarChart>
             </ResponsiveContainer>
           </div>

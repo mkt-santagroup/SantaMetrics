@@ -6,7 +6,7 @@ import styles from './LeadsTable.module.css';
 import { 
   CheckCircle, XCircle, Clock, Search, 
   ChevronLeft, ChevronRight, Filter, Phone, PhoneOff, AlertCircle, ChevronUp, ChevronDown, 
-  CalendarClock, LogIn, Send 
+  CalendarClock, LogIn, Send, UserCheck 
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -47,7 +47,7 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
     };
   }, []);
 
-  // --- MOTOR DE SALVAMENTO (Mantido igual, salva se for maior que a call) ---
+  // --- MOTOR DE SALVAMENTO (Mantido igual) ---
   useEffect(() => {
     const runUpdates = async () => {
       for (const item of data) {
@@ -64,7 +64,6 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
           
           if (callReferenceStr) {
             const callDate = parseISO(callReferenceStr);
-            // Salva se for posterior à call (A validação rigorosa de 7 dias será visual)
             if (isAfter(liveLoginDate, callDate)) {
                const savedPosLogin = item.pos_login_static ? parseISO(item.pos_login_static) : null;
                if (!savedPosLogin || isAfter(liveLoginDate, savedPosLogin)) {
@@ -81,7 +80,7 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
     runUpdates();
   }, [data]);
 
-  // --- FILTROS & PAGINAÇÃO ---
+  // --- FILTROS ---
   const filteredData = useMemo(() => {
     const today = new Date();
     return data.filter((item) => {
@@ -106,7 +105,6 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
   const totalPages = Math.ceil(filteredData.length / itemsPerPage);
   const paginatedData = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-  // --- HELPERS ---
   const formatTempo = (minutos: number | null) => {
     if (minutos === null) return '-';
     const horas = Math.floor(minutos / 60);
@@ -119,28 +117,51 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
     return format(parseISO(dateStr), "dd/MM HH:mm", { locale: ptBR });
   };
 
-  // --- BADGE DE STATUS COM REGRA DE 7 DIAS ---
+  // --- BADGE DE STATUS COM LÓGICA "ANTES" ---
   const StatusPosCallBadge = ({ item }: { item: CallLead }) => {
-    // 1. Se não tem data salva -> NÃO
     if (!item.pos_login_static) {
-      return <BadgeNao />;
+      return (
+        <span style={{ 
+          color: '#ef4444', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: '0.85rem',
+          background: 'rgba(239, 68, 68, 0.1)', padding: '4px 12px', borderRadius: '99px', width: 'fit-content'
+        }}>
+          <XCircle size={14} /> Não
+        </span>
+      );
+    }
+
+    // NOVA REGRA: Se tem pos_login, mas NÃO TEM hora de call -> ANTES
+    if (!item.call1_hour && !item.call2_hour) {
+      return (
+        <span style={{ 
+          color: '#8b5cf6', // Roxo
+          display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: '0.85rem',
+          background: 'rgba(139, 92, 246, 0.1)', padding: '4px 12px', borderRadius: '99px', width: 'fit-content'
+        }}>
+          <UserCheck size={14} /> Antes
+        </span>
+      );
     }
 
     const posLoginDate = parseISO(item.pos_login_static);
-    // Pega referência da call (ou criação)
-    const callReferenceStr = item.call1_hour || item.created_at; 
+    const callReferenceStr = item.call1_hour || item.call2_hour;
+    // Se por algum milagre entrou aqui sem hora, usa created_at (mas cairia no if acima)
     const callDate = callReferenceStr ? parseISO(callReferenceStr) : new Date();
 
-    // 2. Calcula a diferença em dias
-    // Se a diferença for maior que 7 dias -> NÃO (mesmo tendo data salva)
-    // Usamos Math.abs para garantir, mas a lógica de salvamento já garante que pos > call
     const diffDays = differenceInDays(posLoginDate, callDate);
 
+    // Se a diferença for > 7 dias, invalidamos
     if (diffDays > 7) {
-      return <BadgeNao />;
+      return (
+        <span style={{ 
+          color: '#ef4444', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: '0.85rem',
+          background: 'rgba(239, 68, 68, 0.1)', padding: '4px 12px', borderRadius: '99px', width: 'fit-content'
+        }}>
+          <XCircle size={14} /> Não
+        </span>
+      );
     }
 
-    // 3. Se for no mesmo dia -> SIM
     if (isSameDay(posLoginDate, callDate)) {
       return (
         <span style={{ 
@@ -150,10 +171,7 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
           <CheckCircle size={14} /> Sim
         </span>
       );
-    } 
-    
-    // 4. Se for diferente do dia, mas dentro de 7 dias (já validado acima) -> DEPOIS
-    else {
+    } else {
       return (
         <span style={{ 
           color: '#3b82f6', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: '0.85rem',
@@ -164,16 +182,6 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
       );
     }
   };
-
-  // Componente auxiliar para o "Não" (para evitar repetição)
-  const BadgeNao = () => (
-    <span style={{ 
-      color: '#ef4444', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: '0.85rem',
-      background: 'rgba(239, 68, 68, 0.1)', padding: '4px 12px', borderRadius: '99px', width: 'fit-content'
-    }}>
-      <XCircle size={14} /> Não
-    </span>
-  );
 
   const CallStatusCell = ({ status, timeStr }: { status: string | null, timeStr: string | null }) => {
     if (!status && !timeStr) return <span style={{color: 'var(--text-tertiary)', fontSize: '0.85rem'}}>-</span>;
@@ -269,6 +277,8 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
           )}
         </tbody>
       </table>
+      
+      {/* PAGINAÇÃO (Mantida) */}
       {filteredData.length > 0 && (
         <div className={styles.pagination}>
           <div style={{display:'flex', alignItems:'center', gap:'1rem'}}>

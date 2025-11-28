@@ -3,21 +3,34 @@ import { useState, useMemo } from 'react';
 import { CallLead } from '@/types/callLeads';
 import { parseISO, compareAsc, compareDesc } from 'date-fns';
 
-export type SortOption = 'newest' | 'oldest';
-export type PosLoginOption = 'all' | 'yes' | 'no' | 'before';
+export type SortKey = 'created_at' | 'Last_login' | 'pos_login_static' | 'call1_hour' | 'call2_hour' | 'Tempo_de_jogo';
+export type SortDirection = 'asc' | 'desc';
+export type PosLoginOption = 'all' | 'yes' | 'no';
 
 export function useCallFilters(data: CallLead[]) {
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Estados do Filtro Único
-  const [sortOrder, setSortOrder] = useState<SortOption>('newest');
+  const [sortKey, setSortKey] = useState<SortKey>('created_at');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+
   const [posLoginFilter, setPosLoginFilter] = useState<PosLoginOption>('all');
-  const [statusFilter, setStatusFilter] = useState<string[]>([]); // Para status específicos se precisar
+  const [call1StatusFilter, setCall1StatusFilter] = useState<string>('all');
+  const [call2StatusFilter, setCall2StatusFilter] = useState<string>('all');
+
+  // --- NOVA FUNÇÃO DE RESET ---
+  const resetFilters = () => {
+    setSearchTerm('');
+    setSortKey('created_at');
+    setSortDirection('desc');
+    setPosLoginFilter('all');
+    setCall1StatusFilter('all');
+    setCall2StatusFilter('all');
+  };
 
   const filteredData = useMemo(() => {
     let result = [...data];
 
-    // 1. Busca Texto (ID, Nome, Zap)
+    // 1. Busca Texto
     if (searchTerm) {
       const lower = searchTerm.toLowerCase();
       result = result.filter(item => 
@@ -27,33 +40,63 @@ export function useCallFilters(data: CallLead[]) {
       );
     }
 
-    // 2. Filtro Pós Login (Entraram / Não Entraram)
+    // 2. Filtro Pós Login
     if (posLoginFilter !== 'all') {
       result = result.filter(item => {
-        if (posLoginFilter === 'yes') return !!item.pos_login_static; // Tem data = Entrou
-        if (posLoginFilter === 'no') return !item.pos_login_static;   // Sem data = Não entrou
+        if (posLoginFilter === 'yes') return !!item.pos_login_static;
+        if (posLoginFilter === 'no') return !item.pos_login_static;
         return true;
       });
     }
 
-    // 3. Ordenação (Mais Recente / Mais Antigo)
+    // --- CORREÇÃO DO BUG AQUI ---
+    // Normalizamos para UpperCase e Trim para garantir que "SENT" bata com "SENT"
+    
+    // 3. Filtro Status Call 1
+    if (call1StatusFilter !== 'all') {
+      result = result.filter(item => {
+        const s = item.call1_status ? item.call1_status.trim().toUpperCase() : 'UNKNOWN';
+        return s === call1StatusFilter.trim().toUpperCase();
+      });
+    }
+
+    // 4. Filtro Status Call 2
+    if (call2StatusFilter !== 'all') {
+      result = result.filter(item => {
+        const s = item.call2_status ? item.call2_status.trim().toUpperCase() : 'UNKNOWN';
+        return s === call2StatusFilter.trim().toUpperCase();
+      });
+    }
+
+    // 5. Ordenação
     result.sort((a, b) => {
-      const dateA = a.created_at ? parseISO(a.created_at) : new Date(0);
-      const dateB = b.created_at ? parseISO(b.created_at) : new Date(0);
-      
-      if (sortOrder === 'newest') return compareDesc(dateA, dateB); // Do maior pro menor
-      if (sortOrder === 'oldest') return compareAsc(dateA, dateB);  // Do menor pro maior
-      return 0;
+      let valA: any = a[sortKey];
+      let valB: any = b[sortKey];
+
+      if (sortKey === 'Tempo_de_jogo') {
+        valA = valA || 0;
+        valB = valB || 0;
+        return sortDirection === 'asc' ? valA - valB : valB - valA;
+      }
+
+      const dateA = valA ? parseISO(valA) : new Date(0);
+      const dateB = valB ? parseISO(valB) : new Date(0);
+
+      if (sortDirection === 'desc') return compareDesc(dateA, dateB);
+      return compareAsc(dateA, dateB);
     });
 
     return result;
-  }, [data, searchTerm, sortOrder, posLoginFilter, statusFilter]);
+  }, [data, searchTerm, sortKey, sortDirection, posLoginFilter, call1StatusFilter, call2StatusFilter]);
 
   return {
     searchTerm, setSearchTerm,
-    sortOrder, setSortOrder,
+    sortKey, setSortKey,
+    sortDirection, setSortDirection,
     posLoginFilter, setPosLoginFilter,
-    statusFilter, setStatusFilter,
+    call1StatusFilter, setCall1StatusFilter,
+    call2StatusFilter, setCall2StatusFilter,
+    resetFilters, // Exporta a função
     filteredData
   };
 }

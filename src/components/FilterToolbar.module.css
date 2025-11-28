@@ -1,13 +1,17 @@
+/* src/components/FilterToolbar.module.css */
+
 .toolbarContainer {
   display: flex;
   gap: 12px;
   align-items: center;
   margin-bottom: 1.5rem;
-  padding: 0 2rem; /* Alinhado com a tabela */
+  padding: 0 2rem;
   font-family: 'Montserrat', sans-serif;
+  position: relative;
+  z-index: 50; 
 }
 
-/* BUSCA */
+/* --- BARRA DE BUSCA --- */
 .searchWrapper {
   flex: 1;
   max-width: 400px;
@@ -17,90 +21,101 @@
   display: flex;
   align-items: center;
   padding: 0 12px;
-  height: 44px;
+  height: 48px;
   transition: all 0.2s;
 }
 
 .searchWrapper:focus-within {
   background: var(--bg-card);
   border-color: var(--text-primary);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
 }
 
-.searchIcon { color: var(--text-tertiary); }
+.searchIcon { color: var(--text-tertiary); min-width: 18px; }
+
 .searchInput {
   border: none;
   background: transparent;
   flex: 1;
-  margin-left: 8px;
+  margin-left: 10px;
   color: var(--text-primary);
   outline: none;
   font-size: 0.9rem;
   font-weight: 500;
-}
-.clearSearch {
-  background: none; border: none; cursor: pointer; color: var(--text-tertiary);
+  font-family: 'Montserrat', sans-serif;
 }
 
-/* FILTRO (Dropdown) */
-.filterWrapper {
-  position: relative;
+.clearSearch {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-tertiary);
+  padding: 6px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
 }
+
+.clearSearch:hover { background-color: rgba(0,0,0,0.05); color: var(--text-primary); }
+
+/* --- BOTÃO DE FILTRO --- */
+.filterWrapper { position: relative; }
 
 .filterTrigger {
-  height: 44px;
-  padding: 0 20px;
+  height: 48px;
+  padding: 0 24px;
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: 12px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   cursor: pointer;
   color: var(--text-primary);
   font-weight: 700;
   font-size: 0.9rem;
   transition: all 0.2s;
   position: relative;
+  white-space: nowrap;
 }
 
-.filterTrigger:hover {
-  background: var(--bg-hover);
-}
-
-.filterTrigger.active {
-  border-color: var(--text-primary);
-  background: var(--bg-hover);
-}
+.filterTrigger:hover { background: var(--bg-hover); border-color: var(--text-tertiary); }
+.filterTrigger.active { border-color: var(--text-primary); background: var(--bg-hover); }
 
 .badge {
   background: #ef4444;
   color: white;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  font-size: 0.65rem;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 4px;
+  border-radius: 99px;
+  font-size: 0.7rem;
+  font-weight: 800;
   display: flex;
   align-items: center;
   justify-content: center;
   position: absolute;
-  top: -6px;
-  right: -6px;
+  top: -8px;
+  right: -8px;
+  border: 2px solid var(--bg-card);
 }
 
-/* O MENU FLUTUANTE */
+/* --- MENU DROPDOWN PRINCIPAL --- */
 .dropdown {
   position: absolute;
-  top: 110%;
+  top: calc(100% + 10px);
   right: 0;
-  width: 280px;
+  width: 320px; /* Largura do menu principal */
   background: var(--bg-card);
   border: 1px solid var(--border-color);
-  border-radius: 16px;
-  box-shadow: 0 20px 50px -10px rgba(0,0,0,0.3);
-  padding: 16px;
+  border-radius: 20px;
+  box-shadow: 0 30px 60px -15px rgba(0,0,0,0.6);
+  padding: 20px;
   z-index: 100;
-  animation: slideDown 0.2s ease;
+  
+  /* CRÍTICO: Permite que o menu lateral saia da caixa */
+  overflow: visible !important; 
+  animation: slideDown 0.2s ease-out forwards;
 }
 
 @keyframes slideDown {
@@ -108,76 +123,217 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-.section {
+/* Header */
+.dropdownHeader {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.sectionTitle {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  font-weight: 700;
-  color: var(--text-secondary);
-  display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 6px;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color);
 }
 
-.optionsGrid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
+.headerTitle { font-size: 0.95rem; font-weight: 800; color: var(--text-primary); }
 
-.optionBtn {
-  background: var(--bg-hover);
-  border: 1px solid transparent;
-  padding: 8px;
-  border-radius: 8px;
-  font-size: 0.8rem;
-  color: var(--text-secondary);
+.clearBtn {
+  background: rgba(239, 68, 68, 0.1);
+  border: none;
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: #ef4444;
   cursor: pointer;
+  text-transform: uppercase;
+  padding: 6px 10px;
+  border-radius: 6px;
   transition: all 0.2s;
 }
+.clearBtn:hover { background: rgba(239, 68, 68, 0.2); }
 
-.optionBtn:hover { color: var(--text-primary); }
+/* Seções */
+.section { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; position: relative; }
+.section:last-child { margin-bottom: 0; }
 
-.optionBtn.selected {
-  background: var(--text-primary); /* Inverte no dark/light */
-  color: var(--bg-card);
-  font-weight: 700;
+.sectionTitle {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  font-weight: 800;
+  color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: 0.05em;
 }
 
-.divider {
-  height: 1px;
-  background: var(--border-color);
-  margin: 16px 0;
-}
-
-.optionsList {
+/* --- ORDENAÇÃO --- */
+.sortList {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
+  background: var(--bg-hover);
+  padding: 10px;
+  border-radius: 12px;
 }
 
-.radioLabel {
+.sortRow { display: flex; justify-content: space-between; align-items: center; }
+.sortLabel { font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); }
+
+.sortButtons {
+  display: flex;
+  background: var(--bg-card);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 3px;
+  border: 1px solid var(--border-color);
+}
+
+.miniBtn {
+  border: none;
+  background: transparent;
+  padding: 4px 8px;
+  font-size: 0.7rem;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-tertiary);
+  font-weight: 700;
+  transition: all 0.2s;
+}
+.miniBtn:hover { color: var(--text-primary); }
+.miniBtn.selected { background: var(--text-primary); color: var(--bg-card); }
+
+/* --- FILTROS (GRID SIM/NÃO) --- */
+.optionsGrid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+
+.filterBtn {
+  background: var(--bg-hover);
+  border: 1px solid transparent;
+  padding: 10px 4px;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-align: center;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+.filterBtn:hover { background: var(--bg-card); border-color: var(--border-color); color: var(--text-primary); }
+.filterSelected { background: var(--text-primary) !important; color: var(--bg-card) !important; font-weight: 800; }
+
+/* --- CUSTOM PICKER (O QUE ESTAVA DANDO PROBLEMA) --- */
+.pickerContainer {
+  position: relative;
+  
+  /* MUDE AQUI: De 100% para fit-content */
+  width: fit-content; 
+  
+  /* Opcional: Define um tamanho mínimo para não ficar muito espremido */
+  min-width: 300px; 
+}
+
+.pickerTrigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  
+  /* AJUSTE AQUI: Reduzi o padding de 12px para 8px */
+  padding: 8px 12px; 
+  
+  background-color: var(--bg-hover); 
+  border: 1px solid transparent;
+  border-radius: 8px; /* Reduzi um pouco o arredondamento também para combinar */
+  color: var(--text-primary);
+  font-family: 'Montserrat', sans-serif;
+  
+  /* AJUSTE AQUI: Reduzi a fonte para ficar mais delicado */
+  font-size: 0.8rem; 
+  
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  user-select: none;
+}
+
+.pickerTrigger:hover { background-color: var(--bg-card); border-color: var(--text-tertiary); }
+.pickerTrigger.isOpen { background-color: var(--bg-card); border-color: var(--text-primary); }
+
+/* --- MENU LATERAL (Abre pra DIREITA) --- */
+.pickerMenu {
+  position: absolute;
+  top: -10px;       /* Alinha um pouco acima */
+  left: 105%;       /* Joga totalmente para a DIREITA (fora do container) */
+  width: 240px;     /* Largura MENOR e fixa */
+  max-height: 300px; 
+  overflow-y: auto;
+  
+  background-color: #121212; /* Fundo bem escuro */
+  border: 1px solid #333;
+  border-radius: 16px;
+  
+  /* Sombra para destacar */
+  box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+  
+  z-index: 9999; /* Z-index altíssimo */
+  padding: 6px;
+  
+  animation: slideSide 0.15s ease-out forwards;
+}
+
+/* Animação vindo da esquerda pra direita */
+@keyframes slideSide {
+  from { opacity: 0; transform: translateX(-10px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.pickerOption {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 0.9rem;
-  color: var(--text-primary);
+  padding: 8px 10px;
+  margin-bottom: 2px;
+  border-radius: 8px;
   cursor: pointer;
-  padding: 6px;
-  border-radius: 6px;
+  color: #a3a3a3;
+  font-size: 0.8rem;
+  font-weight: 500;
+  transition: all 0.1s;
 }
 
-.radioLabel:hover {
-  background: var(--bg-hover);
-}
+.pickerOption:hover { background-color: #262626; color: #fff; }
 
-.radioLabel input {
-  accent-color: var(--text-primary);
-  width: 16px; 
-  height: 16px;
+.pickerOptionSelected { background-color: #fff; color: #000; font-weight: 800; }
+.pickerOptionSelected span { color: #000 !important; }
+
+.pickerIcon { display: flex; align-items: center; justify-content: center; width: 16px; flex-shrink: 0; }
+
+.pickerMenu::-webkit-scrollbar { width: 4px; }
+.pickerMenu::-webkit-scrollbar-track { background: transparent; }
+.pickerMenu::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
+
+/* --- MOBILE: Volta pro padrão (baixo) --- */
+@media (max-width: 640px) {
+  .toolbarContainer { padding: 0 1rem; flex-direction: column; }
+  .searchWrapper { max-width: 100%; }
+  
+  .dropdown {
+    width: 100%;
+    right: 0; left: 0;
+    position: fixed; bottom: 0; top: auto;
+    border-radius: 24px 24px 0 0;
+    max-height: 80vh;
+    animation: slideUpMobile 0.3s ease-out;
+  }
+
+  .pickerMenu {
+    position: static;
+    width: 100%;
+    margin-top: 8px;
+    box-shadow: none;
+    background: #1a1a1a;
+    animation: none;
+  }
+
+  @keyframes slideUpMobile {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
 }

@@ -5,47 +5,35 @@ import styles from './LeadsTable.module.css';
 import { useCallFilters } from '@/hooks/useCallFilters';
 import FilterToolbar from './FilterToolbar';
 import { 
-  Clock, Phone, PhoneOff, AlertCircle, Send, LogIn, Hash, 
-  ChevronLeft, ChevronRight, ChevronDown, ChevronUp, UserCheck, XCircle, CheckCircle 
+  Hash, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, XCircle, CheckCircle 
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
+import { STATUS_CONFIG } from '@/utils/callStatusColors';
 
 interface CallLeadsTableProps {
   data: CallLead[];
   dateFilter: string;
 }
 
-const STATUS_CONFIG: Record<string, { label: string, bg: string, color: string, icon: any }> = {
-  'ANSWERED': { label: 'Atendida', color: '#16a34a', bg: 'rgba(22, 163, 74, 0.1)', icon: Phone },
-  'NO ANSWER': { label: 'Sem Resposta', color: '#ca8a04', bg: 'rgba(202, 138, 4, 0.1)', icon: PhoneOff },
-  'BUSY': { label: 'Ocupado', color: '#ea580c', bg: 'rgba(234, 88, 12, 0.1)', icon: PhoneOff },
-  'FAILED': { label: 'Falhou', color: '#dc2626', bg: 'rgba(220, 38, 38, 0.1)', icon: AlertCircle },
-  'CONGESTION': { label: 'Congestionado', color: '#dc2626', bg: 'rgba(220, 38, 38, 0.1)', icon: AlertCircle },
-  'NO_ROUTE': { label: 'Sem Rota', color: '#6b7280', bg: 'rgba(107, 114, 128, 0.1)', icon: AlertCircle },
-  'ROUTE_UNAVAILABLE': { label: 'Rota Indisp.', color: '#6b7280', bg: 'rgba(107, 114, 128, 0.1)', icon: AlertCircle },
-  'DUPLICATED': { label: 'Duplicado', color: '#6b7280', bg: 'rgba(107, 114, 128, 0.1)', icon: AlertCircle },
-  'SENT': { label: 'Enviada', color: '#6b7280', bg: 'rgba(107, 114, 128, 0.1)', icon: Send }, 
-};
-
 export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps) {
   
-  // Hook de Filtros Lógicos
   const { 
     filteredData, 
     searchTerm, setSearchTerm,
-    sortOrder, setSortOrder,
-    posLoginFilter, setPosLoginFilter
+    sortKey, setSortKey,
+    sortDirection, setSortDirection,
+    posLoginFilter, setPosLoginFilter,
+    call1StatusFilter, setCall1StatusFilter,
+    call2StatusFilter, setCall2StatusFilter,
+    resetFilters 
   } = useCallFilters(data);
 
-  // Estados de Paginação
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   
-  // [CORREÇÃO] Adicionada a referência que faltava
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // [CORREÇÃO] Efeito para fechar o dropdown da paginação ao clicar fora
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -61,7 +49,6 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
   const totalPages = Math.ceil(filteredData.length / itemsPerPage);
   const paginatedData = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-  // Helpers
   const formatData = (dateStr: string | null) => {
     if (!dateStr) return '-';
     return format(parseISO(dateStr), 'dd/MM HH:mm');
@@ -75,15 +62,17 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
   };
 
   const StatusPosCallBadge = ({ item }: { item: CallLead }) => {
-    if (!item.pos_login_static) return <span style={{color:'#ef4444', fontWeight:700, fontSize:'0.8rem', display:'flex', gap:4, alignItems:'center'}}><XCircle size={14}/> Não</span>;
-    return <span style={{color:'#10b981', fontWeight:700, fontSize:'0.8rem', display:'flex', gap:4, alignItems:'center'}}><CheckCircle size={14}/> Sim</span>;
+    if (!item.pos_login_static) return <span style={{color:'#ef4444', fontWeight:700, fontSize:'0.8rem', display:'flex', gap:4, alignItems:'center', justifyContent: 'center'}}><XCircle size={14}/> Não</span>;
+    return <span style={{color:'#10b981', fontWeight:700, fontSize:'0.8rem', display:'flex', gap:4, alignItems:'center', justifyContent: 'center'}}><CheckCircle size={14}/> Sim</span>;
   };
 
   const CallStatusCell = ({ status, timeStr }: { status: string | null, timeStr: string | null }) => {
     if (!status && !timeStr) return <span style={{color: 'var(--text-tertiary)', fontSize: '0.85rem'}}>-</span>;
-    const finalStatus = status || (timeStr ? 'SENT' : '');
-    const config = STATUS_CONFIG[finalStatus] || STATUS_CONFIG['SENT'];
+    
+    const finalStatus = status || (timeStr ? 'SENT' : 'UNKNOWN');
+    const config = STATUS_CONFIG[finalStatus] || STATUS_CONFIG['UNKNOWN'];
     const Icon = config.icon;
+
     return (
       <div style={{display:'flex', flexDirection:'column', alignItems:'flex-start', gap:'2px'}}>
         <span style={{
@@ -103,16 +92,28 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
   };
 
   return (
-    <div className={styles.tableContainer} style={{ background: 'transparent', boxShadow: 'none' }}>
+    // CORREÇÃO APLICADA AQUI: overflow: 'visible' para permitir que o menu flutue pra fora
+    <div className={styles.tableContainer} style={{ background: 'transparent', boxShadow: 'none', overflow: 'visible' }}>
       
-      {/* Barra de Ferramentas Refatorada */}
       <FilterToolbar 
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
-        sortOrder={sortOrder}
-        onSortChange={setSortOrder}
+        
+        sortKey={sortKey}
+        onSortKeyChange={setSortKey}
+        sortDirection={sortDirection}
+        onSortDirectionChange={setSortDirection}
+        
         posLoginFilter={posLoginFilter}
         onPosLoginChange={setPosLoginFilter}
+
+        call1StatusFilter={call1StatusFilter}
+        onCall1StatusChange={setCall1StatusFilter}
+
+        call2StatusFilter={call2StatusFilter}
+        onCall2StatusChange={setCall2StatusFilter}
+
+        onReset={resetFilters}
       />
 
       <div style={{ background: 'var(--bg-card)', borderRadius: '24px', border: '1px solid var(--border-color)', overflow: 'hidden', boxShadow: '0 10px 30px -10px var(--shadow-color)' }}>
@@ -174,7 +175,6 @@ export default function CallLeadsTable({ data, dateFilter }: CallLeadsTableProps
           </tbody>
         </table>
 
-        {/* PAGINAÇÃO */}
         {filteredData.length > 0 && (
           <div className={styles.pagination}>
             <div style={{display:'flex', alignItems:'center', gap:'1rem'}}>

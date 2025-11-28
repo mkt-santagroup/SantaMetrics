@@ -25,6 +25,9 @@ export interface CallLead {
   call1_status: string | null;
   call2_status: string | null;
 
+  last_login_static: string | null; // O snapshot do login original
+  pos_login_static: string | null;  // A data que confirmou o login pós call
+
   // --- NOVOS CAMPOS DE HORA ---
   call1_hour: string | null;
   call2_hour: string | null;

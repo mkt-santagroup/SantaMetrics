@@ -16,7 +16,7 @@
 .modal {
   background: var(--bg-card);
   width: 100%;
-  max-width: 500px;
+  max-width: 550px; /* Aumentei um pouco para caber melhor */
   border-radius: 24px;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
   padding: 2rem;
@@ -30,6 +30,39 @@
 @keyframes scaleIn {
   from { transform: scale(0.95); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
+}
+
+/* --- ABAS (NOVO) --- */
+.tabs {
+  display: flex;
+  background: var(--bg-hover);
+  padding: 4px;
+  border-radius: 12px;
+  margin-bottom: 1.5rem;
+}
+
+.tabBtn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 10px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: 'Montserrat', sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.tabActive {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 
 .header {
@@ -69,6 +102,8 @@
   text-transform: uppercase;
   color: var(--text-secondary);
   letter-spacing: 0.05em;
+  display: block;
+  margin-bottom: 0.5rem;
 }
 
 .radioOption {
@@ -91,6 +126,38 @@
 .radioOption.selected {
   border-color: var(--accent-color);
   background: var(--bg-hover);
+}
+
+/* TEXTAREA (NOVO) */
+.manualInputContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.textarea {
+  width: 100%;
+  height: 120px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1rem;
+  color: var(--text-primary);
+  font-family: 'Montserrat', monospace; /* Fonte mono para alinhar dados */
+  font-size: 0.85rem;
+  resize: none;
+  outline: none;
+  box-sizing: border-box; /* Garante que o padding não estoure a largura total */
+}
+
+.textarea:focus {
+  border-color: var(--text-tertiary);
+  background: var(--bg-card);
+}
+
+.helperText {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
 }
 
 /* Checkbox */

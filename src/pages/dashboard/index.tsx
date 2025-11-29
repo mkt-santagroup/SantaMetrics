@@ -42,7 +42,8 @@ export default function Dashboard() {
   // --- 1. AUTH CHECK ---
   useEffect(() => {
     const token = Cookies.get('santa_auth');
-    if (token !== 'logado') router.push('/');
+    // CORREÇÃO AQUI: Redireciona para /login em vez de / para evitar loops
+    if (token !== 'logado') router.push('/login');
   }, [router]);
 
   // --- 2. FETCH DATA & REALTIME ---

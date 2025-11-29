@@ -1,10 +1,9 @@
-// src/components/SmartChart.tsx
 import { useState, useMemo } from 'react';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
 } from 'recharts';
 import { 
-  format, parseISO, isAfter, isBefore, eachDayOfInterval, 
+  format, parseISO, eachDayOfInterval, 
   isSameDay, differenceInDays, startOfDay, endOfDay, min, subDays, addDays 
 } from 'date-fns'; 
 import styles from './SmartChart.module.css';
@@ -68,7 +67,6 @@ export default function SmartChart({ data, dateFilter }: SmartChartProps) {
       end = dateFilter.to ? endOfDay(dateFilter.to) : endOfDay(new Date());
     }
 
-    // Correção Visual (Sanduíche): Se for 1 dia só, adiciona padding
     if (isSameDay(start, end)) {
       start = subDays(start, 1);
       end = addDays(end, 1);
@@ -89,69 +87,58 @@ export default function SmartChart({ data, dateFilter }: SmartChartProps) {
 
     const totalCounts = { total: 0, answered: 0, posCallSameDay: 0, posCall7d: 0, organic: 0 };
 
+    // --- STRINGS DE COMPARAÇÃO PARA O FILTRO (IGNORA TIMEZONE) ---
+    const filterStartStr = dateFilter.from ? format(dateFilter.from, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
+    const filterEndStr = dateFilter.to ? format(dateFilter.to, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
+
     // --- 3. PREENCHIMENTO ---
     data.forEach(lead => {
       if (!lead.created_at) return;
-      const leadDate = parseISO(lead.created_at);
       
-      // Filtra visualmente (O que vai aparecer nas linhas do gráfico)
-      if (isBefore(leadDate, start) || isAfter(leadDate, end)) return;
+      // FIX TIMEZONE: Pega os primeiros 10 caracteres (YYYY-MM-DD) direto do banco
+      const dateKey = lead.created_at.substring(0, 10);
+      
+      if (!aggregated[dateKey] && dateFilter.value !== 'lifetime') return;
 
-      const dateKey = format(leadDate, 'yyyy-MM-dd');
-      if (!aggregated[dateKey]) return;
-
-      // Verifica se conta para os CARDS (Totais do topo)
+      // FIX TIMEZONE PARA OS CARDS (TOTAIS):
+      // Usa comparação de strings ao invés de isBefore/isAfter com Date Objects
       const isInUserRange = dateFilter.value === 'lifetime' 
         ? true 
-        : (dateFilter.from && dateFilter.to 
-            ? (!isBefore(leadDate, startOfDay(dateFilter.from)) && !isAfter(leadDate, endOfDay(dateFilter.to)))
-            : true);
+        : (dateKey >= filterStartStr && dateKey <= filterEndStr);
 
-      // A. Total Leads
-      aggregated[dateKey].total++;
+      if (aggregated[dateKey]) aggregated[dateKey].total++;
       if (isInUserRange) totalCounts.total++;
 
-      // B. Atendidas (Qualquer uma das duas)
+      // B. Atendidas
       const isAnswered = lead.call1_status === 'ANSWERED' || lead.call2_status === 'ANSWERED';
       if (isAnswered) {
-        aggregated[dateKey].answered++;
+        if (aggregated[dateKey]) aggregated[dateKey].answered++;
         if (isInUserRange) totalCounts.answered++;
       }
 
-      // C. Lógica de Conversão (CORRIGIDA: Prioridade para O MESMO DIA)
+      // C. Lógica de Conversão
       if (lead.pos_login_static) {
         const posLoginDate = parseISO(lead.pos_login_static);
         
-        // Determina a data da ligação de referência (Prioridade Call 1, depois Call 2)
         let callDate: Date | null = null;
-        if (lead.call1_hour) {
-          callDate = parseISO(lead.call1_hour);
-        } else if (lead.call2_hour) {
-          callDate = parseISO(lead.call2_hour);
-        }
+        if (lead.call1_hour) callDate = parseISO(lead.call1_hour);
+        else if (lead.call2_hour) callDate = parseISO(lead.call2_hour);
 
-        // --- NOVA REGRA DE ATRIBUIÇÃO ---
-        
-        // 1. RECUPERADO NO DIA (Prioridade Máxima)
-        // Se houve ligação E o login foi no MESMO DIA (independente da hora exata)
+        // 1. RECUPERADO NO DIA
         if (callDate && isSameDay(posLoginDate, callDate)) {
-          aggregated[dateKey].posCallSameDay++;
+          if (aggregated[dateKey]) aggregated[dateKey].posCallSameDay++;
           if (isInUserRange) totalCounts.posCallSameDay++;
         }
-        
-        // 2. RECUPERADO ANTES (Orgânico)
-        // Se NÃO teve ligação, OU se o login foi estritamente ANTES do dia da ligação
-        else if (!callDate || isBefore(posLoginDate, callDate)) {
-          aggregated[dateKey].organic++;
+        // 2. RECUPERADO ANTES
+        else if (!callDate || (callDate && posLoginDate < callDate)) { // Fix lógico simples
+          if (aggregated[dateKey]) aggregated[dateKey].organic++;
           if (isInUserRange) totalCounts.organic++;
         }
-        
-        // 3. RECUPERADO 7 DIAS (Recuperação Tardia)
-        // Se não foi no mesmo dia e não foi antes, então foi depois (em outro dia)
+        // 3. RECUPERADO 7 DIAS
         else {
-          const diffDays = differenceInDays(posLoginDate, callDate);
+          const diffDays = differenceInDays(posLoginDate, callDate!);
           if (diffDays <= 7) {
-            aggregated[dateKey].posCall7d++;
+            if (aggregated[dateKey]) aggregated[dateKey].posCall7d++;
             if (isInUserRange) totalCounts.posCall7d++;
           }
         }

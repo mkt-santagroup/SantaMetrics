@@ -2,7 +2,7 @@
 import { useState, useMemo } from 'react';
 import { CallLead } from '@/types/callLeads';
 import styles from './TriggerCallModal.module.css';
-import { isSameDay } from 'date-fns';
+import { format } from 'date-fns'; // Trocamos isSameDay por format
 import { PhoneOutgoing, CheckCircle, Check } from 'lucide-react';
 
 interface TriggerCallModalProps {
@@ -19,15 +19,22 @@ export default function TriggerCallModal({ data, onClose }: TriggerCallModalProp
   
   // Estados de Controle
   const [isSending, setIsSending] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false); // <--- NOVO ESTADO
+  const [isSuccess, setIsSuccess] = useState(false);
   const [progress, setProgress] = useState<{ sent: number, total: number } | null>(null);
 
-  // 1. Filtrar APENAS leads de HOJE
+  // 1. Filtrar APENAS leads de HOJE (Com Fix de Timezone)
   const leadsDeHoje = useMemo(() => {
-    const today = new Date();
+    // Pega a data de hoje no formato "YYYY-MM-DD"
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+
     return data.filter(lead => {
       if (!lead.created_at) return false;
-      return isSameDay(new Date(lead.created_at), today);
+      
+      // FIX TIMEZONE: Pega os primeiros 10 caracteres da string do banco (ex: "2025-11-29")
+      // Isso ignora se é 00:08 UTC ou 21:08 BRT, ele olha apenas o DIA escrito.
+      const leadDateStr = lead.created_at.substring(0, 10);
+      
+      return leadDateStr === todayStr;
     });
   }, [data]);
 
@@ -70,7 +77,7 @@ export default function TriggerCallModal({ data, onClose }: TriggerCallModalProp
     }
 
     setIsSending(false);
-    setIsSuccess(true); // <--- ATIVA A TELA DE SUCESSO
+    setIsSuccess(true);
   };
 
   return (

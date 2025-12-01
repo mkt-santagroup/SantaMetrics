@@ -5,21 +5,36 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import YTDlpWrap from 'yt-dlp-wrap';
+import { Readable } from 'stream';
+import { finished } from 'stream/promises';
 
-// Função auxiliar para garantir que o binário existe
+// Função para baixar o arquivo manualmente, garantindo a versão Standalone
+async function downloadBinary(url: string, dest: string) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Falha ao baixar binário: ${res.statusText}`);
+  const fileStream = fs.createWriteStream(dest);
+  // @ts-ignore - ReadableStream do fetch é compatível com pipe no Node moderno
+  await finished(Readable.fromWeb(res.body).pipe(fileStream));
+}
+
+// Garante que temos o binário CERTO
 async function ensureBinaryExists(destination: string) {
   if (fs.existsSync(destination)) {
-    return; // Já existe, segue o jogo
+    // Opcional: verificar tamanho do arquivo para garantir que não está corrompido
+    const stats = fs.statSync(destination);
+    if (stats.size > 1000000) return; // Se for maior que 1MB, provavelmente está ok
   }
 
-  console.log('⬇️ Binário não encontrado. Baixando yt-dlp para Linux...');
+  console.log('⬇️ Baixando yt-dlp standalone manual...');
   
-  // CORREÇÃO AQUI: Chamando o método estático direto da Classe, sem dar "new"
-  await YTDlpWrap.downloadFromGithub(destination, undefined, 'linux');
+  // URL direta para a versão Linux Standalone (não precisa de Python)
+  const DOWNLOAD_URL = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux';
   
-  // Garante permissão de execução (chmod +x)
+  await downloadBinary(DOWNLOAD_URL, destination);
+  
+  // Dá permissão de execução
   fs.chmodSync(destination, '755');
-  console.log('✅ Download concluído e permissão concedida.');
+  console.log('✅ Download manual concluído.');
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -33,24 +48,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     console.log(`📺 [START] Processando ${platform}: ${url}`);
 
-    // ============================================================
-    // 1. PREPARAÇÃO DO BINÁRIO (A Solução Nuclear)
-    // ============================================================
-    // Vamos usar a pasta /tmp que é garantida de ter permissão de escrita no Railway
-    const binaryPath = path.join(os.tmpdir(), 'yt-dlp_linux');
+    // Caminho na pasta temporária
+    const binaryPath = path.join(os.tmpdir(), 'yt-dlp_linux_standalone');
     
-    // Verifica e baixa se necessário
+    // Baixa o binário correto
     await ensureBinaryExists(binaryPath);
 
-    // Instancia apontando EXPLICITAMENTE para o arquivo em /tmp
+    // Instancia o wrapper apontando para o nosso binário manual
     const ytDlp = new YTDlpWrap(binaryPath);
 
     // ============================================================
-    // 2. COOKIES
+    // CONFIGURAÇÃO DE COOKIES (IGUAL)
     // ============================================================
     if (platform === 'tiktok' || platform === 'instagram') {
         const dbKey = platform === 'tiktok' ? 'tiktok_cookies' : 'instagram_cookies';
-        
         const { data: settings } = await supabase
             .from('SETTINGS')
             .select('value')
@@ -64,7 +75,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // ============================================================
-    // 3. EXECUÇÃO
+    // EXECUÇÃO
     // ============================================================
     let args = [
       url,
@@ -75,18 +86,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     ];
 
     if (tempCookiePath) {
+        // User Agent genérico para evitar bloqueios
         const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36';
         args.push('--cookies', tempCookiePath);
         args.push('--user-agent', userAgent);
     }
 
-    console.log(`Executando binário em: ${binaryPath}`);
+    console.log(`Executando: ${binaryPath}`);
 
     const stdout = await ytDlp.execPromise(args);
     const output = JSON.parse(stdout);
 
     // ============================================================
-    // 4. EXTRAÇÃO
+    // EXTRAÇÃO DOS DADOS
     // ============================================================
     const views = output.view_count || output.play_count || 0;
     const shares = output.repost_count || output.share_count || 0;
@@ -104,9 +116,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     console.log("✅ Sucesso:", extractedData);
 
-    // ============================================================
-    // 5. SALVAR NO BANCO
-    // ============================================================
+    // Salva no Supabase
     const tableName = 
       platform === 'youtube' ? 'VIEWS-YOUTUBE' : 
       platform === 'tiktok' ? 'VIEWS-TIKTOK' : 'VIEWS-INSTAGRAM';
@@ -130,6 +140,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         details: err.message || JSON.stringify(err)
     });
   } finally {
+    // Limpeza
     if (tempCookiePath && fs.existsSync(tempCookiePath)) {
         try { fs.unlinkSync(tempCookiePath); } catch(e) {}
     }

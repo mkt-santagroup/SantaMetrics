@@ -6,9 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
-    "postinstall": "node install-binary.js" 
-  },
+    "lint": "eslint"
+    },
   "dependencies": {
     "yt-dlp-wrap": "^2.3.12",
     "@supabase/supabase-js": "^2.84.0",

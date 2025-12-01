@@ -18,20 +18,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log(`📺 [START] Processando ${platform}: ${url}`);
 
     // ============================================================
-    // 1. LOCALIZAR O EXECUTÁVEL
+    // 1. CONFIGURAÇÃO DO EXECUTÁVEL
     // ============================================================
-    // O postinstall baixou o arquivo 'yt-dlp' na raiz do projeto.
-    const binaryName = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp';
-    const binaryPath = path.join(process.cwd(), binaryName);
-
-    if (!fs.existsSync(binaryPath)) {
-        throw new Error(`O binário yt-dlp não foi encontrado em: ${binaryPath}. O postinstall rodou?`);
-    }
-
-    console.log(`🔧 Usando binário local: ${binaryPath}`);
-    
-    // Instancia o wrapper apontando para o arquivo local
-    const ytDlp = new YTDlpWrap(binaryPath);
+    // MUDANÇA: Não procuramos mais arquivo local.
+    // Como instalamos via pip no nixpacks.toml, o comando é apenas 'yt-dlp'
+    const ytDlp = new YTDlpWrap('yt-dlp');
 
     // ============================================================
     // 2. COOKIES (TIKTOK E INSTAGRAM)
@@ -45,33 +36,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             .eq('key', dbKey)
             .single();
 
-        if (!settings?.value) {
-            return res.status(400).json({ error: `Cookies do ${platform} não configurados.` });
+        if (settings?.value) {
+            tempCookiePath = path.join(os.tmpdir(), `${platform}-cookies-${Date.now()}.txt`);
+            fs.writeFileSync(tempCookiePath, settings.value);
+        } else {
+            console.log(`⚠️ Aviso: Cookies de ${platform} não encontrados no banco.`);
         }
-
-        tempCookiePath = path.join(os.tmpdir(), `${platform}-cookies-${Date.now()}.txt`);
-        fs.writeFileSync(tempCookiePath, settings.value);
     }
 
     // ============================================================
     // 3. EXECUÇÃO
     // ============================================================
     
-    // Argumentos do comando
     let args = [
       url,
       '--dump-json',
       '--skip-download',
-      '--no-warnings'
+      '--no-warnings',
+      '--no-check-certificate' // Ajuda a evitar erros de SSL no servidor
     ];
 
     if (tempCookiePath) {
-        const userAgent = '"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"';
+        const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36';
         args.push('--cookies', tempCookiePath);
         args.push('--user-agent', userAgent);
     }
 
-    console.log(`Executando comando...`);
+    console.log(`Executando yt-dlp...`);
 
     // Executa e pega o JSON
     const stdout = await ytDlp.execPromise(args);
@@ -82,7 +73,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // ============================================================
     const views = output.view_count || output.play_count || 0;
     const shares = output.repost_count || output.share_count || 0;
-    const author = output.uploader || output.channel || output.uploader_id || 'Desconhecido';
+    // Tenta pegar o nome do autor de vários lugares possíveis
+    const author = output.uploader || output.channel || output.uploader_id || output.creator || 'Desconhecido';
 
     const extractedData = {
         views: views,
@@ -117,9 +109,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   } catch (err: any) {
     console.error("❌ Erro Geral:", err);
+    // Se o erro vier do execPromise, ele costuma vir como string ou object
     return res.status(500).json({ 
         error: 'Erro ao processar URL.', 
-        details: err.message 
+        details: err.message || JSON.stringify(err)
     });
   } finally {
     if (tempCookiePath && fs.existsSync(tempCookiePath)) {

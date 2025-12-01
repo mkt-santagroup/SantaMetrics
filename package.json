@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "postinstall": "yt-dlp-wrap --download"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.84.0",

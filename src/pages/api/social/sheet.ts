@@ -1,6 +1,5 @@
 // src/pages/api/social/sheet.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { supabase } from '@/lib/supabaseClient';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -9,7 +8,7 @@ import { Readable } from 'stream';
 import { finished } from 'stream/promises';
 import { ApifyClient } from 'apify-client';
 
-// --- Funções Auxiliares (Binário) ---
+// --- 1. FUNÇÕES AUXILIARES (Instalação yt-dlp para YouTube) ---
 async function downloadBinary(url: string, dest: string) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Falha download binário: ${res.statusText}`);
@@ -21,63 +20,70 @@ async function downloadBinary(url: string, dest: string) {
 async function ensureBinaryExists(destination: string) {
   if (fs.existsSync(destination)) {
     const stats = fs.statSync(destination);
-    if (stats.size > 1000000) return;
+    if (stats.size > 1000000) return; 
   }
-  // Sempre tenta pegar a versão mais recente do yt-dlp
   const DOWNLOAD_URL = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux';
   await downloadBinary(DOWNLOAD_URL, destination);
   fs.chmodSync(destination, '755');
 }
 
-// --- NOVA FUNÇÃO: Tenta baixar TikTok com várias estratégias ---
-async function fetchTikTokWithRetry(url: string, ytDlp: YTDlpWrap, cookiePath: string): Promise<any> {
-  const userAgents = [
-    // 1. PC Moderno (Chrome 120)
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    // 2. iPhone (Mobile Safari) - Fallback
-    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1'
-  ];
-
-  // Tentativa 1: Cookie + PC
+// --- 2. NOVA FUNÇÃO: TIKTOK VIA API EXTERNA (TIKWM) ---
+// Rápida, sem bloqueio e sem cookies.
+async function fetchTikTokData(url: string) {
   try {
-    return await runYtDlp(url, ytDlp, cookiePath, userAgents[0]);
-  } catch (e) {
-    console.warn(`[TikTok Retry 1] Falha PC com Cookie. Tentando Mobile... (${url})`);
-  }
+    const apiUrl = `https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`;
+    const response = await fetch(apiUrl);
+    const json = await response.json();
 
-  // Tentativa 2: Cookie + Mobile
-  try {
-    return await runYtDlp(url, ytDlp, cookiePath, userAgents[1]);
-  } catch (e) {
-    console.warn(`[TikTok Retry 2] Falha Mobile com Cookie. Tentando sem Cookie... (${url})`);
-  }
-
-  // Tentativa 3: SEM Cookie + PC (Última chance)
-  try {
-    return await runYtDlp(url, ytDlp, null, userAgents[0]);
-  } catch (e) {
-    console.error(`[TikTok Fail] Desistindo de ${url}`);
-    throw e; // Se falhar as 3, desiste
+    if (json.code === 0 && json.data) {
+      const item = json.data;
+      return {
+        name_account: item.author?.unique_id || 'Desconhecido',
+        date: new Date(item.create_time * 1000).toLocaleDateString('pt-BR'),
+        views: item.play_count || 0,
+        likes: item.digg_count || 0,
+        comments: item.comment_count || 0,
+        shares: item.share_count || 0,
+        saves: item.download_count || 0, // TikTok usa downloads como métrica forte de "save"
+      };
+    } else {
+      return { error: 'API TikTok falhou ou vídeo privado' };
+    }
+  } catch (error) {
+    console.error('Erro TikTok API:', error);
+    return { error: 'Erro de conexão TikTok' };
   }
 }
 
-// Executa o comando real
-async function runYtDlp(url: string, ytDlp: YTDlpWrap, cookiePath: string | null, userAgent: string) {
-  let args = [
-    url,
-    '--dump-json',
-    '--skip-download',
-    '--no-warnings',
-    '--no-check-certificate',
-    '--user-agent', userAgent
-  ];
+// --- 3. FUNÇÃO YOUTUBE (YT-DLP Simples) ---
+async function fetchYoutubeData(url: string, ytDlp: YTDlpWrap) {
+  try {
+    const args = [
+      url,
+      '--dump-json',
+      '--skip-download',
+      '--no-warnings',
+      '--no-check-certificate',
+      '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    ];
+    const stdout = await ytDlp.execPromise(args);
+    const output = JSON.parse(stdout);
 
-  if (cookiePath) {
-    args.push('--cookies', cookiePath);
+    return {
+        name_account: output.uploader || output.channel || 'Desconhecido',
+        date: output.upload_date 
+            ? `${output.upload_date.substring(6,8)}/${output.upload_date.substring(4,6)}/${output.upload_date.substring(0,4)}` 
+            : new Date().toLocaleDateString('pt-BR'),
+        views: output.view_count || 0,
+        likes: output.like_count || 0,
+        comments: output.comment_count || 0,
+        saves: 0, // Youtube não divulga saves publicamente
+        shares: 0 // Nem shares exatos via scraping simples
+    };
+  } catch (e) {
+    console.error('Erro Youtube:', e);
+    return { error: 'Erro Link Youtube' };
   }
-
-  const stdout = await ytDlp.execPromise(args);
-  return JSON.parse(stdout);
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -86,7 +92,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
      return res.status(401).json({ error: 'Senha incorreta' });
   }
 
-  // MODO GET (POLLING)
+  // =================================================================================
+  // MODO 1: VERIFICAR STATUS (POLLING - GET) - Usado pelo Google Sheets
+  // =================================================================================
   if (req.method === 'GET' && req.query.runId) {
     const runId = req.query.runId as string;
     
@@ -104,6 +112,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
             apifyResults.forEach((item: any) => {
                 const matchUrl = item.url || item.inputUrl; 
+                // Prioridade de Views para Reels
                 const views = item.videoPlayCount || item.playCount || item.videoViewCount || item.viewCount || 0;
                 
                 results[matchUrl] = {
@@ -128,7 +137,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   }
 
-  // MODO POST (START)
+  // =================================================================================
+  // MODO 2: INICIAR TAREFA (POST)
+  // =================================================================================
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const items = req.body.items || [];
@@ -144,6 +155,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     try {
         if (!process.env.APIFY_TOKEN) throw new Error("APIFY_TOKEN não configurado");
         const client = new ApifyClient({ token: process.env.APIFY_TOKEN });
+        
+        // Inicia o Crawler e retorna o ID imediatamente
         const run = await client.actor("apify/instagram-scraper").start({
             directUrls: instaItems.map((i: any) => i.url),
             resultsType: "posts",
@@ -152,64 +165,41 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         apifyRunId = run.id;
     } catch (e: any) {
         console.error(e);
-        return res.status(500).json({ error: 'Falha Apify' });
+        // Se falhar o start, marcamos erro nos itens
+        instaItems.forEach((i: any) => results[i.url] = { error: 'Falha Start Apify' });
     }
   }
 
-  // 2. TIKTOK/YOUTUBE (Via YT-DLP - Síncrono com Retry)
+  // 2. TIKTOK E YOUTUBE (Processamento Imediato)
   if (otherItems.length > 0) {
-     try {
-        const binaryPath = path.join(os.tmpdir(), 'yt-dlp_linux_sheet_batch');
-        await ensureBinaryExists(binaryPath);
-        
-        const ytDlp = new YTDlpWrap(binaryPath);
-        let tempCookiePath = '';
-        
-        // Prepara Cookie do TikTok
-        if (otherItems.some((i: any) => i.platform === 'tiktok')) {
-            const { data: s } = await supabase.from('SETTINGS').select('value').eq('key', 'tiktok_cookies').single();
-            if (s?.value) {
-                tempCookiePath = path.join(os.tmpdir(), `batch-${Date.now()}.txt`);
-                fs.writeFileSync(tempCookiePath, s.value);
-            }
-        }
-
-        // Processa em paralelo
-        await Promise.all(otherItems.map(async (item: any) => {
-            try {
-                let output;
-                
-                if (item.platform === 'tiktok') {
-                    // USA A NOVA LÓGICA DE 3 VIDAS
-                    output = await fetchTikTokWithRetry(item.url, ytDlp, tempCookiePath);
-                } else {
-                    // Youtube (Padrão)
-                    output = await runYtDlp(item.url, ytDlp, null, 'Mozilla/5.0');
-                }
-
-                results[item.url] = {
-                    name_account: output.uploader || output.channel || 'Desconhecido',
-                    date: output.upload_date 
-                        ? `${output.upload_date.substring(6,8)}/${output.upload_date.substring(4,6)}/${output.upload_date.substring(0,4)}` 
-                        : new Date().toLocaleDateString('pt-BR'),
-                    views: output.view_count || output.play_count || 0,
-                    likes: output.like_count || 0,
-                    comments: output.comment_count || 0,
-                    saves: output.save_count || 0,
-                    shares: output.repost_count || output.share_count || 0
-                };
-            } catch (e) {
-                // Se falhou todas as tentativas
-                results[item.url] = { error: 'Bloqueio/Erro Link' };
-            }
-        }));
-
-        if (tempCookiePath && fs.existsSync(tempCookiePath)) fs.unlinkSync(tempCookiePath);
-     } catch (e) {
-         console.error("Erro YT-DLP:", e);
+     // Prepara binário apenas se tiver Youtube na lista
+     let ytDlp: YTDlpWrap | null = null;
+     if (otherItems.some((i: any) => i.platform === 'youtube')) {
+        try {
+            const binaryPath = path.join(os.tmpdir(), 'yt-dlp_linux_sheet_final');
+            await ensureBinaryExists(binaryPath);
+            ytDlp = new YTDlpWrap(binaryPath);
+        } catch(e) { console.error("Erro setup yt-dlp", e); }
      }
+
+     // Processa tudo em paralelo
+     await Promise.all(otherItems.map(async (item: any) => {
+        if (item.platform === 'tiktok') {
+            // TIKTOK: Usa API Externa (TikWM) - Zero Bloqueio
+            results[item.url] = await fetchTikTokData(item.url);
+        } else if (item.platform === 'youtube' && ytDlp) {
+            // YOUTUBE: Usa yt-dlp local
+            results[item.url] = await fetchYoutubeData(item.url, ytDlp);
+        } else {
+            results[item.url] = { error: 'Plataforma não suportada' };
+        }
+     }));
   }
 
+  // Retorno unificado
+  // O Google Apps Script vai receber:
+  // - runId (se tiver Instagram pendente)
+  // - results (dados já prontos do TikTok/Youtube)
   return res.status(200).json({ 
       runId: apifyRunId, 
       results: results,

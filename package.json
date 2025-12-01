@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "postinstall": "./node_modules/.bin/yt-dlp-wrap --download"
+    "postinstall": "npx yt-dlp-wrap --download"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.84.0",

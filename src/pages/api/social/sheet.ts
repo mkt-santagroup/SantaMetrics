@@ -28,9 +28,11 @@ async function ensureBinaryExists(destination: string) {
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  // 1. Segurança: Verifica a senha que está na URL (?secret=santa123)
+  // 1. Segurança: Agora compara com a variável da Railway
   const { secret } = req.query;
-  if (secret !== 'santa123') { // Pode por no .env se preferir
+  
+  // MUDANÇA AQUI: Usar process.env.API_SECRET_KEY ao invés de 'santa123'
+  if (secret !== process.env.API_SECRET_KEY) { 
      return res.status(401).json({ error: 'Senha incorreta' });
   }
 

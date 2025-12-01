@@ -14,13 +14,8 @@ async function ensureBinaryExists(destination: string) {
 
   console.log('⬇️ Binário não encontrado. Baixando yt-dlp para Linux...');
   
-  // Instancia temporária apenas para usar o downloader
-  const downloader = new YTDlpWrap();
-  
-  // Baixa a versão LINUX (que é standalone e não depende do python do sistema)
-  // O 'undefined' no segundo argumento pega a versão mais recente
-  // O 'linux' força o binário correto pro Railway
-  await downloader.downloadFromGithub(destination, undefined, 'linux');
+  // CORREÇÃO AQUI: Chamando o método estático direto da Classe, sem dar "new"
+  await YTDlpWrap.downloadFromGithub(destination, undefined, 'linux');
   
   // Garante permissão de execução (chmod +x)
   fs.chmodSync(destination, '755');

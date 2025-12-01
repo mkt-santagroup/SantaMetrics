@@ -1,15 +1,16 @@
 # nixpacks.toml
 
 [phases.setup]
-# Instala o ambiente base: Node, Python 3 e FFmpeg
-nixPkgs = ["nodejs", "python3", "ffmpeg"]
+# AQUI ESTÁ A MÁGICA: Adicionamos "yt-dlp" na lista do sistema.
+# O Railway vai instalar o binário oficial e colocar no PATH global.
+nixPkgs = ["nodejs", "python3", "ffmpeg", "yt-dlp"]
 
 [phases.install]
-# Instala dependências do Node E instala o yt-dlp e requests via Python
-# Isso garante que o comando 'yt-dlp' exista no terminal do servidor
+# Instalamos apenas o 'requests' caso seu script antigo precise.
+# O yt-dlp já foi instalado na fase de setup acima.
 cmds = [
     "npm ci",
-    "python3 -m pip install yt-dlp requests"
+    "python3 -m pip install requests"
 ]
 
 [phases.build]

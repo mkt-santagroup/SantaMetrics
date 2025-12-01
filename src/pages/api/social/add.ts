@@ -1,13 +1,10 @@
 // src/pages/api/social/add.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { supabase } from '@/lib/supabaseClient';
-import { exec } from 'child_process';
-import util from 'util';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-
-const execPromise = util.promisify(exec);
+import YTDlpWrap from 'yt-dlp-wrap';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -18,13 +15,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   let tempCookiePath = '';
 
   try {
-    let extractedData: any = {};
     console.log(`📺 [START] Processando ${platform}: ${url}`);
 
-    // 1. PREPARAR COOKIES (Se necessário)
+    // ============================================================
+    // 1. LOCALIZAR O EXECUTÁVEL
+    // ============================================================
+    // O postinstall baixou o arquivo 'yt-dlp' na raiz do projeto.
+    const binaryName = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp';
+    const binaryPath = path.join(process.cwd(), binaryName);
+
+    if (!fs.existsSync(binaryPath)) {
+        throw new Error(`O binário yt-dlp não foi encontrado em: ${binaryPath}. O postinstall rodou?`);
+    }
+
+    console.log(`🔧 Usando binário local: ${binaryPath}`);
+    
+    // Instancia o wrapper apontando para o arquivo local
+    const ytDlp = new YTDlpWrap(binaryPath);
+
+    // ============================================================
+    // 2. COOKIES (TIKTOK E INSTAGRAM)
+    // ============================================================
     if (platform === 'tiktok' || platform === 'instagram') {
         const dbKey = platform === 'tiktok' ? 'tiktok_cookies' : 'instagram_cookies';
-        const { data: settings } = await supabase.from('SETTINGS').select('value').eq('key', dbKey).single();
+        
+        const { data: settings } = await supabase
+            .from('SETTINGS')
+            .select('value')
+            .eq('key', dbKey)
+            .single();
 
         if (!settings?.value) {
             return res.status(400).json({ error: `Cookies do ${platform} não configurados.` });
@@ -34,39 +53,38 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         fs.writeFileSync(tempCookiePath, settings.value);
     }
 
-    // 2. MONTAR O COMANDO (AQUI ESTÁ A CORREÇÃO RAILWAY)
-    // Usamos 'python3 -m yt_dlp' que é infalível se o python estiver instalado
-    // No Windows local, ele pode precisar ser apenas 'yt-dlp' ou 'python -m yt_dlp'
+    // ============================================================
+    // 3. EXECUÇÃO
+    // ============================================================
     
-    // Detecta se é Windows ou Linux (Railway)
-    const isWindows = process.platform === 'win32';
-    const baseCommand = isWindows ? 'yt-dlp' : 'python3 -m yt_dlp';
+    // Argumentos do comando
+    let args = [
+      url,
+      '--dump-json',
+      '--skip-download',
+      '--no-warnings'
+    ];
 
-    const userAgent = '"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"';
-    
-    let args = `--dump-json --skip-download --no-warnings --user-agent ${userAgent}`;
-    
     if (tempCookiePath) {
-        args += ` --cookies "${tempCookiePath}"`;
+        const userAgent = '"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"';
+        args.push('--cookies', tempCookiePath);
+        args.push('--user-agent', userAgent);
     }
 
-    const fullCommand = `${baseCommand} ${args} "${url}"`;
+    console.log(`Executando comando...`);
 
-    console.log(`Executando comando: ${fullCommand}`);
-    
-    // 3. EXECUÇÃO (Com Timeout de 25s)
-    const { stdout } = await execPromise(fullCommand, { timeout: 25000 });
-    
-    if (!stdout) throw new Error("Sem resposta do yt-dlp");
-
+    // Executa e pega o JSON
+    const stdout = await ytDlp.execPromise(args);
     const output = JSON.parse(stdout);
 
+    // ============================================================
     // 4. EXTRAÇÃO
+    // ============================================================
     const views = output.view_count || output.play_count || 0;
     const shares = output.repost_count || output.share_count || 0;
     const author = output.uploader || output.channel || output.uploader_id || 'Desconhecido';
 
-    extractedData = {
+    const extractedData = {
         views: views,
         likes: output.like_count || 0,
         coments: output.comment_count || 0,
@@ -78,7 +96,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     console.log("✅ Dados Extraídos:", extractedData);
 
+    // ============================================================
     // 5. SALVAR NO BANCO
+    // ============================================================
     const tableName = 
       platform === 'youtube' ? 'VIEWS-YOUTUBE' : 
       platform === 'tiktok' ? 'VIEWS-TIKTOK' : 'VIEWS-INSTAGRAM';
@@ -96,15 +116,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({ success: true, data: extractedData });
 
   } catch (err: any) {
-    console.error("❌ Erro ao processar:", url);
-    console.error(err.message || err);
-    
-    // Mostra erro detalhado se for stderr
-    const errorDetails = err.stderr || err.message;
-    
+    console.error("❌ Erro Geral:", err);
     return res.status(500).json({ 
         error: 'Erro ao processar URL.', 
-        details: errorDetails 
+        details: err.message 
     });
   } finally {
     if (tempCookiePath && fs.existsSync(tempCookiePath)) {

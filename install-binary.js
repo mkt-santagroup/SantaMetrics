@@ -1,26 +1,41 @@
 // install-binary.js
-const YTDlpWrap = require('yt-dlp-wrap').default;
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
+
+// Tenta importar a lib. Se falhar, não crasha o build, mas avisa.
+let YTDlpWrap;
+try {
+    YTDlpWrap = require('yt-dlp-wrap').default;
+} catch (e) {
+    console.error("❌ Erro: yt-dlp-wrap não instalado. O 'npm install' rodou?");
+    process.exit(1);
+}
 
 (async () => {
-    console.log('⬇️  Iniciando download do binário yt-dlp...');
+    console.log('⬇️  [SETUP] Iniciando download do binário yt-dlp...');
     
-    try {
-        // Baixa o binário oficial mais recente do GitHub e salva na raiz
-        await YTDlpWrap.downloadFromGithub();
-        console.log('✅ Download concluído!');
+    // Define o nome do arquivo final
+    const binaryName = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp';
+    const binaryPath = path.join(__dirname, binaryName);
 
-        // No Linux (Railway), precisamos dar permissão de execução
+    try {
+        // Baixa o binário oficial mais recente do GitHub
+        await YTDlpWrap.downloadFromGithub(binaryPath);
+        console.log(`✅ [SETUP] Download concluído em: ${binaryPath}`);
+
+        // No Linux (Railway), precisamos dar permissão de execução (chmod +x)
         if (process.platform !== 'win32') {
-            const binaryPath = path.join(__dirname, 'yt-dlp');
-            if (fs.existsSync(binaryPath)) {
+            try {
                 fs.chmodSync(binaryPath, '755');
-                console.log('🔒 Permissão de execução concedida (755).');
+                console.log('🔒 [SETUP] Permissão de execução (755) concedida.');
+            } catch (err) {
+                console.error('⚠️ [SETUP] Falha ao dar permissão via fs, tentando via shell...');
+                execSync(`chmod +x ${binaryPath}`);
             }
         }
     } catch (error) {
-        console.error('❌ Erro ao baixar yt-dlp:', error);
+        console.error('❌ [SETUP] Erro fatal ao baixar yt-dlp:', error);
         process.exit(1);
     }
 })();

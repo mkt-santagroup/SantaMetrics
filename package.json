@@ -6,10 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
-    },
-    
+    "lint": "eslint",
+    "postinstall": "node install-binary.js" 
+  },
   "dependencies": {
+    "yt-dlp-wrap": "^2.3.12",
     "@supabase/supabase-js": "^2.84.0",
     "date-fns": "^4.1.0",
     "js-cookie": "^3.0.5",
@@ -18,9 +19,7 @@
     "react": "19.2.0",
     "react-day-picker": "^9.11.2",
     "react-dom": "19.2.0",
-    "recharts": "^3.5.0",
-    "youtube-dl-exec": "^3.0.27",
-    "yt-dlp-wrap": "^2.3.12"
+    "recharts": "^3.5.0"
   },
   "devDependencies": {
     "@types/js-cookie": "^3.0.6",

@@ -1,0 +1,211 @@
+/* src/components/ViewsDashboard.module.css */
+
+.container {
+  font-family: 'Montserrat', sans-serif;
+  margin-top: 1rem;
+  width: 100%;
+  animation: fadeIn 0.4s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* HEADER */
+.header { margin-bottom: 2rem; }
+.title { font-size: 1.8rem; font-weight: 800; color: var(--text-primary); margin: 0; }
+.subtitle { color: var(--text-secondary); font-size: 0.9rem; margin-top: 4px; }
+
+/* BOTÕES DE AÇÃO (Refresh e Add) */
+.actionIconBtn {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  width: 40px;
+  height: 40px;
+  border-radius: 12px; /* Mais arredondado */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.actionIconBtn:hover { background: var(--bg-hover); transform: translateY(-2px); }
+
+.addBtn {
+  background: var(--text-primary);
+  color: var(--bg-card);
+  border: none;
+  padding: 0 20px;
+  height: 40px;
+  border-radius: 12px; /* Mais arredondado */
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+.addBtn:hover { opacity: 0.9; transform: translateY(-2px); }
+
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { 100% { transform: rotate(360deg); } }
+
+/* --- TABS COLORIDAS --- */
+.platformTabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 1.5rem;
+  background: var(--bg-hover);
+  padding: 5px;
+  border-radius: 16px;
+  width: fit-content;
+}
+
+.tabBtn {
+  background: transparent;
+  border: 1px solid transparent; /* Para evitar pulo no layout */
+  padding: 8px 20px;
+  border-radius: 12px;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.tabBtn:hover { color: var(--text-primary); background: rgba(255,255,255,0.05); }
+
+/* ESTADO ATIVO GERAL (Todos) */
+.tabBtn.active {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-weight: 800;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+/* --- CORES ESPECÍFICAS QUANDO ATIVO --- */
+
+/* YouTube: Vermelho */
+.tabBtn.youtube.active {
+  background-color: #ef4444; 
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+}
+
+/* Instagram: Gradiente */
+.tabBtn.instagram.active {
+  background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(220, 39, 67, 0.4);
+}
+
+/* TikTok: Preto (Light) ou Ciano (Dark) */
+.tabBtn.tiktok.active {
+  background-color: #000;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+/* Ajuste TikTok Dark Mode para dar destaque */
+[data-theme='dark'] .tabBtn.tiktok.active {
+  background-color: #25F4EE; /* Ciano TikTok */
+  color: #000;
+  box-shadow: 0 4px 12px rgba(37, 244, 238, 0.3);
+}
+
+/* --- TABELA --- */
+.tableWrapper {
+  background: var(--bg-card);
+  border-radius: 24px; /* Mais arredondado */
+  border: 1px solid var(--border-color);
+  box-shadow: 0 10px 30px -10px var(--shadow-color);
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: separate; /* Permite border-radius */
+  border-spacing: 0;
+  min-width: 1000px;
+}
+
+.table th {
+  padding: 1.2rem 1.5rem;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-tertiary);
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-hover);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  vertical-align: middle;
+  font-weight: 500;
+}
+
+.table tr:last-child td { border-bottom: none; }
+.table tr:hover td { background-color: var(--bg-hover); }
+
+/* UTILITÁRIOS */
+.textRight { text-align: right; }
+.fontBold { font-weight: 700; }
+
+.iconBox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: var(--bg-hover);
+  margin: 0 auto;
+}
+
+.linkTiny {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  text-decoration: none;
+  font-weight: 500;
+}
+.linkTiny:hover { color: var(--accent-color); text-decoration: underline; }
+
+.dateCell {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-family: monospace;
+  font-weight: 600;
+}
+
+/* DELETE BTN */
+.deleteBtn {
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 8px;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.deleteBtn:hover { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+
+.emptyState, .loading { text-align: center; padding: 4rem; color: var(--text-tertiary); }

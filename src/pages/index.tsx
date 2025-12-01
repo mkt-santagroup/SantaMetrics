@@ -1,10 +1,11 @@
-import { useEffect, useState, useMemo } from 'react';
+// src/pages/index.tsx
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Cookies from 'js-cookie';
 import { supabase } from '@/lib/supabaseClient';
 import { Lead } from '@/types/leads';
 import { CallLead } from '@/types/callLeads';
-import styles from './dashboard/page.module.css'; // Caminho do CSS
+import styles from './dashboard/page.module.css';
 
 // Componentes
 import LeadsTable from '@/components/LeadsTable';
@@ -14,34 +15,39 @@ import Navbar from '@/components/Navbar';
 import DashboardOverview from '@/components/DashboardOverview';
 import CallDashboardOverview from '@/components/CallDashboardOverview';
 import TriggerCallModal from '@/components/TriggerCallModal';
-import DateRangePicker, { DateFilterType } from '@/components/DateRangePicker'; // Picker Novo
+import DateRangePicker, { DateFilterType } from '@/components/DateRangePicker';
+import ViewsDashboard from '@/components/ViewsDashboard'; // <--- Importante
 
-import { subDays } from 'date-fns';
+// Ícones e Utils
+import { subDays, startOfDay, endOfDay } from 'date-fns';
 import { Wifi, WifiOff, PhoneOutgoing } from 'lucide-react';
 
 export default function Dashboard() {
   const router = useRouter();
   
+  // Estados de Dados
   const [leads, setLeads] = useState<Lead[]>([]);
   const [callLeads, setCallLeads] = useState<CallLead[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Estados de Controle
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
-  const [currentTab, setCurrentTab] = useState<'leads' | 'call'>('leads');
+  const [currentTab, setCurrentTab] = useState<'leads' | 'call' | 'views'>('leads');
   const [isConnected, setIsConnected] = useState(false);
   const [showTriggerModal, setShowTriggerModal] = useState(false);
 
-  // --- ESTADO EXCLUSIVO DO GRÁFICO (Controlado pelo Picker) ---
+  // Filtro de Data (Gráfico/Call)
   const [chartDateFilter, setChartDateFilter] = useState<DateFilterType>({
-    label: 'Últimos 7 dias',
-    value: '7days',
-    from: subDays(new Date(), 7),
-    to: new Date()
+    label: 'Hoje',
+    value: 'today',
+    from: startOfDay(new Date()),
+    to: endOfDay(new Date())
   });
 
   // --- 1. AUTH CHECK ---
   useEffect(() => {
     const token = Cookies.get('santa_auth');
-    if (token !== 'logado') router.push('/');
+    if (token !== 'logado') router.push('/login');
   }, [router]);
 
   // --- 2. FETCH DATA & REALTIME ---
@@ -66,6 +72,7 @@ export default function Dashboard() {
     };
   }, []);
 
+  // Handlers Realtime
   const handleRealtimeChange = (payload: any, setFn: React.Dispatch<React.SetStateAction<any[]>>) => {
     const newRecord = payload.new;
     const oldRecord = payload.old;
@@ -85,16 +92,28 @@ export default function Dashboard() {
     });
   };
 
+  // Buscas Iniciais
   async function fetchLeads() {
-    setLoading(true);
-    const { data } = await supabase.from('WPP-UNIVERSO_RP-LEADS').select('*').order('created_at', { ascending: false });
-    if (data) setLeads(data);
-    setLoading(false);
+    try {
+      setLoading(true);
+      const { data, error } = await supabase.from('WPP-UNIVERSO_RP-LEADS').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      if (data) setLeads(data);
+    } catch (err) {
+      console.error('Erro ao buscar leads WPP:', err);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function fetchCallLeads() {
-    const { data } = await supabase.from('CALL-UNIVESO-RP-LEADS').select('*').order('ID', { ascending: false });
-    if (data) setCallLeads(data as CallLead[]);
+    try {
+      const { data, error } = await supabase.from('CALL-UNIVESO-RP-LEADS').select('*').order('ID', { ascending: false });
+      if (error) throw error;
+      if (data) setCallLeads(data as CallLead[]);
+    } catch (err) {
+      console.error('Erro ao buscar leads CALL:', err);
+    }
   }
 
   return (
@@ -103,52 +122,53 @@ export default function Dashboard() {
 
       <div className={styles.container}>
         
-        <div className={styles.pageHeader}>
-          <div>
-            <h1 className={styles.title} style={{ color: 'var(--text-primary)' }}>
-              {currentTab === 'leads' && 'Gerenciamento de Whatsapp'}
-              {currentTab === 'call' && 'Gerenciamento de Ligações'}
-            </h1>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '0.5rem' }}>
-              <p className={styles.subtitle} style={{ margin: 0, color: 'var(--text-secondary)' }}>
-                Dados em tempo real
-              </p>
-              <div className={styles.liveBadge} style={{ 
-                background: isConnected ? 'rgba(22, 163, 74, 0.15)' : 'rgba(220, 38, 38, 0.15)',
-                color: isConnected ? '#22c55e' : '#ef4444',
-                border: isConnected ? '1px solid rgba(22, 163, 74, 0.2)' : '1px solid rgba(220, 38, 38, 0.2)'
-              }}>
-                {isConnected ? <Wifi size={12} strokeWidth={3} /> : <WifiOff size={12} />}
-                <span>{isConnected ? 'LIVE' : 'OFFLINE'}</span>
+        {/* CABEÇALHO PADRÃO (SÓ APARECE SE NÃO FOR ABA VIEWS) */}
+        {currentTab !== 'views' && (
+          <div className={styles.pageHeader}>
+            <div>
+              <h1 className={styles.title} style={{ color: 'var(--text-primary)' }}>
+                {currentTab === 'leads' && 'Gerenciamento de Whatsapp'}
+                {currentTab === 'call' && 'Gerenciamento de Ligações'}
+              </h1>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '0.5rem' }}>
+                <p className={styles.subtitle} style={{ margin: 0, color: 'var(--text-secondary)' }}>
+                  Dados em tempo real
+                </p>
+                <div className={styles.liveBadge} style={{ 
+                  background: isConnected ? 'rgba(22, 163, 74, 0.15)' : 'rgba(220, 38, 38, 0.15)',
+                  color: isConnected ? '#22c55e' : '#ef4444',
+                  border: isConnected ? '1px solid rgba(22, 163, 74, 0.2)' : '1px solid rgba(220, 38, 38, 0.2)'
+                }}>
+                  {isConnected ? <Wifi size={12} strokeWidth={3} /> : <WifiOff size={12} />}
+                  <span>{isConnected ? 'LIVE' : 'OFFLINE'}</span>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className={styles.actions} style={{ gap: '1rem', alignItems: 'center' }}>
-            
-            {currentTab === 'call' && (
-              <>
-                <button 
-                  onClick={() => setShowTriggerModal(true)}
-                  style={{
-                    backgroundColor: '#000', color: '#fff', border: 'none', padding: '10px 20px',
-                    borderRadius: '99px', fontWeight: 700, fontSize: '0.8rem', display: 'flex',
-                    alignItems: 'center', gap: '8px', cursor: 'pointer', fontFamily: 'Montserrat, sans-serif',
-                    boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
-                  }}
-                >
-                  <PhoneOutgoing size={16} /> Disparar Ligações
-                </button>
+            <div className={styles.actions} style={{ gap: '1rem', alignItems: 'center' }}>
+              {currentTab === 'call' && (
+                <>
+                  <button 
+                    onClick={() => setShowTriggerModal(true)}
+                    style={{
+                      backgroundColor: '#000', color: '#fff', border: 'none', padding: '10px 20px',
+                      borderRadius: '99px', fontWeight: 700, fontSize: '0.8rem', display: 'flex',
+                      alignItems: 'center', gap: '8px', cursor: 'pointer', fontFamily: 'Montserrat, sans-serif',
+                      boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
+                    }}
+                  >
+                    <PhoneOutgoing size={16} /> Disparar Ligações
+                  </button>
 
-                {/* DATE PICKER (Controla apenas o gráfico) */}
-                <DateRangePicker 
-                  currentFilter={chartDateFilter} 
-                  onFilterChange={setChartDateFilter} 
-                />
-              </>
-            )}
+                  <DateRangePicker 
+                    currentFilter={chartDateFilter} 
+                    onFilterChange={setChartDateFilter} 
+                  />
+                </>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         <main className={styles.content}>
           {loading && leads.length === 0 ? (
@@ -157,6 +177,7 @@ export default function Dashboard() {
             </div>
           ) : (
             <>
+              {/* ABA 1: WHATSAPP */}
               {currentTab === 'leads' && (
                 <>
                   <DashboardOverview leads={leads} />
@@ -164,26 +185,30 @@ export default function Dashboard() {
                 </>
               )}
               
+              {/* ABA 2: CALL CENTER */}
               {currentTab === 'call' && (
                 <>
-                  {/* Dashboard: Recebe filtro dinâmico pro gráfico e fixo pros outros */}
                   <CallDashboardOverview 
                     data={callLeads} 
                     chartFilter={chartDateFilter} 
                     dateFilter="lifetime" 
                   />
-                  
-                  {/* Tabela: Sempre mostra tudo (Lifetime) */}
                   <CallLeadsTable 
                     data={callLeads} 
                     dateFilter="lifetime" 
                   />
                 </>
               )}
+
+              {/* ABA 3: VIEWS */}
+              {currentTab === 'views' && (
+                <ViewsDashboard />
+              )}
             </>
           )}
         </main>
 
+        {/* MODAIS GLOBAIS */}
         {selectedLead && <LeadModal lead={selectedLead} onClose={() => setSelectedLead(null)} />}
         {showTriggerModal && <TriggerCallModal data={callLeads} onClose={() => setShowTriggerModal(false)} />}
 

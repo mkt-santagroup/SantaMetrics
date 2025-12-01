@@ -1,9 +1,11 @@
+/* src/components/Navbar.module.css */
+
 .navbar {
   background: var(--bg-card);
   backdrop-filter: blur(8px);
   padding: 0 2rem;
   height: 72px;
-  display: flex;
+  display: flex; /* Isso alinha Logo e Abas na mesma linha */
   align-items: center;
   justify-content: space-between;
   position: sticky;
@@ -16,7 +18,7 @@
   transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
-/* Agrupa Logo e Tabs na esquerda */
+/* Seção Esquerda (Logo + Botões de Navegação) */
 .leftSection {
   display: flex;
   align-items: center;
@@ -28,6 +30,8 @@
   font-size: 1.35rem;
   color: var(--text-primary);
   letter-spacing: -0.5px;
+  display: flex;
+  align-items: center;
 }
 
 .logoBold {
@@ -41,9 +45,10 @@
   align-items: center;
 }
 
+/* Estilo do Botão da Aba */
 .tab {
-  background: transparent;
-  border: none;
+  background: transparent; /* Remove o fundo branco padrão */
+  border: none;            /* Remove a borda padrão */
   display: flex;
   align-items: center;
   gap: 8px;
@@ -68,7 +73,7 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-/* --- BOTÕES DE ÍCONE (TEMA E SAIR) --- */
+/* Ícones da direita (Tema/Sair) */
 .iconBtn {
   background: transparent;
   border: none;
@@ -88,16 +93,27 @@
   transform: scale(1.1);
 }
 
-/* Cores específicas para os ícones de sol/lua */
 .sunIcon { color: #ffffff; }
 .moonIcon { color: #202020; }
 
-/* Estilo específico para o botão de sair (vermelho) */
 .logoutBtn {
   color: #ef4444; 
 }
 
 .logoutBtn:hover {
-  background-color: rgba(239, 68, 68, 0.1); /* Vermelho bem clarinho */
+  background-color: rgba(239, 68, 68, 0.1); 
   color: #dc2626;
+}
+
+/* Responsividade para não quebrar em telas menores */
+@media (max-width: 768px) {
+  .navbar {
+    padding: 0 1rem;
+  }
+  .leftSection {
+    gap: 1rem;
+  }
+  .logo {
+    display: none; /* Esconde o logo em mobile se ficar apertado, ou diminua a fonte */
+  }
 }

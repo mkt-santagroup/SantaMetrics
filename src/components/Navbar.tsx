@@ -1,13 +1,12 @@
-import styles from './Navbar.module.css'; 
-import { Users, LogOut, PhoneCall, Sun, Moon } from 'lucide-react'; // Removi LayoutDashboard
+import styles from './Navbar.module.css'; // <--- O NOME DEVE SER EXATO
+import { Users, LogOut, PhoneCall, Sun, Moon, Eye } from 'lucide-react';
 import { useRouter } from 'next/router';
 import Cookies from 'js-cookie';
 import { useTheme } from '@/context/ThemeContext';
 
-// Ajustei a tipagem para aceitar apenas 'leads' ou 'call'
 interface NavbarProps {
-  currentTab: 'leads' | 'call';
-  onTabChange: (tab: 'leads' | 'call') => void;
+  currentTab: 'leads' | 'call' | 'views';
+  onTabChange: (tab: 'leads' | 'call' | 'views') => void;
 }
 
 export default function Navbar({ currentTab, onTabChange }: NavbarProps) {
@@ -16,37 +15,46 @@ export default function Navbar({ currentTab, onTabChange }: NavbarProps) {
 
   const handleLogout = () => {
     Cookies.remove('santa_auth');
-    router.push('/');
+    router.push('/login');
   };
 
   return (
     <nav className={styles.navbar}>
       <div className={styles.leftSection}>
+        {/* Logo */}
         <div className={styles.logo}>
           <span className={styles.logoBold}>Santa</span>Metrics
         </div>
         
+        {/* Abas de Navegação */}
         <div className={styles.tabs}>
-          {/* ABA UNIFICADA: Leads & Dashboard */}
           <button 
             className={`${styles.tab} ${currentTab === 'leads' ? styles.active : ''}`}
             onClick={() => onTabChange('leads')}
           >
             <Users size={18} />
-            Whatsapp
+            <span className={styles.tabText}>Whatsapp</span>
           </button>
 
-          {/* ABA CALL CENTER */}
           <button 
             className={`${styles.tab} ${currentTab === 'call' ? styles.active : ''}`}
             onClick={() => onTabChange('call')}
           >
             <PhoneCall size={18} />
-            Ligações
+            <span className={styles.tabText}>Ligações</span>
+          </button>
+
+          <button 
+            className={`${styles.tab} ${currentTab === 'views' ? styles.active : ''}`}
+            onClick={() => onTabChange('views')}
+          >
+            <Eye size={18} />
+            <span className={styles.tabText}>Views</span>
           </button>
         </div>
       </div>
 
+      {/* Botões da Direita (Tema e Logout) */}
       <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
         <button onClick={toggleTheme} className={styles.iconBtn} title="Alternar Tema">
           {theme === 'light' ? (

@@ -1,0 +1,145 @@
+/* src/components/AddUrlModal.module.css */
+
+.overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(6px); /* Blur um pouco mais forte */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  padding: 1rem;
+}
+
+.modal {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  width: 100%;
+  
+  /* MUDANÇA AQUI: Menor largura para ficar simétrico */
+  max-width: 380px; 
+  
+  border-radius: 24px; /* Mais arredondado */
+  padding: 2rem; /* Mais espaçamento interno */
+  box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+  animation: scaleIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes scaleIn {
+  from { transform: scale(0.95) translateY(10px); opacity: 0; }
+  to { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.header h3 { 
+  margin: 0; 
+  color: var(--text-primary); 
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+.closeBtn {
+  background: var(--bg-hover);
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+.closeBtn:hover { background: var(--border-color); }
+
+.body { display: flex; flex-direction: column; gap: 1.5rem; }
+
+.inputGroup label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--text-secondary);
+  margin-bottom: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Toggle Group mais clean */
+.toggleGroup {
+  display: flex;
+  background: var(--bg-hover);
+  padding: 4px;
+  border-radius: 12px;
+  gap: 4px;
+}
+
+.toggleBtn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 10px;
+  border-radius: 10px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 0.8rem;
+  transition: all 0.2s;
+  font-family: 'Montserrat', sans-serif;
+}
+
+.toggleBtn:hover { color: var(--text-primary); }
+
+/* Cores ativas nos toggles */
+.activeYoutube { background: #ef4444 !important; color: #fff !important; box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3); }
+.activeTiktok { background: var(--text-primary) !important; color: var(--bg-card) !important; }
+.activeInsta { background: linear-gradient(45deg, #f09433, #bc1888) !important; color: #fff !important; }
+
+/* Input field */
+.input {
+  width: 100%;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-page);
+  color: var(--text-primary);
+  font-family: 'Montserrat', sans-serif;
+  outline: none;
+  font-size: 0.9rem;
+  transition: border-color 0.2s;
+  box-sizing: border-box; /* Garante que padding não estoura */
+}
+
+.input:focus { border-color: var(--text-tertiary); background: var(--bg-card); }
+
+/* Botão Salvar */
+.saveBtn {
+  width: 100%;
+  padding: 14px;
+  background: var(--text-primary);
+  color: var(--bg-card);
+  border: none;
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: transform 0.2s;
+  font-family: 'Montserrat', sans-serif;
+}
+
+.saveBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+.saveBtn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 20px -5px rgba(0,0,0,0.2); }

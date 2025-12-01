@@ -1,8 +1,12 @@
+# nixpacks.toml
+
 [phases.setup]
-nixPkgs = ["nodejs", "python3", "ffmpeg", "yt-dlp"]
+# Instala Node, Python 3 e FFmpeg (importante para processamento)
+nixPkgs = ["nodejs", "python3", "ffmpeg"]
 
 [phases.install]
-cmds = ["npm ci"]
+# Instala dependências do Node E o yt-dlp via Python
+cmds = ["npm ci", "python3 -m pip install yt-dlp"]
 
 [phases.build]
 cmds = ["npm run build"]

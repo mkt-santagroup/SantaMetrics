@@ -8,7 +8,7 @@ import { Readable } from 'stream';
 import { finished } from 'stream/promises';
 import { ApifyClient } from 'apify-client';
 
-// --- 1. FUNÇÕES AUXILIARES (Instalação yt-dlp para YouTube) ---
+// --- 1. FUNÇÕES AUXILIARES (Apenas para YouTube agora) ---
 async function downloadBinary(url: string, dest: string) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Falha download binário: ${res.statusText}`);
@@ -31,8 +31,16 @@ async function ensureBinaryExists(destination: string) {
 // Rápida, sem bloqueio e sem cookies.
 async function fetchTikTokData(url: string) {
   try {
+    // API pública do TikWM (usada por muitos scrapers para evitar bloqueio)
     const apiUrl = `https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`;
-    const response = await fetch(apiUrl);
+    
+    // Timeout curto para não travar
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+    
+    const response = await fetch(apiUrl, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    
     const json = await response.json();
 
     if (json.code === 0 && json.data) {
@@ -44,7 +52,7 @@ async function fetchTikTokData(url: string) {
         likes: item.digg_count || 0,
         comments: item.comment_count || 0,
         shares: item.share_count || 0,
-        saves: item.download_count || 0, // TikTok usa downloads como métrica forte de "save"
+        saves: item.download_count || 0, 
       };
     } else {
       return { error: 'API TikTok falhou ou vídeo privado' };
@@ -55,7 +63,7 @@ async function fetchTikTokData(url: string) {
   }
 }
 
-// --- 3. FUNÇÃO YOUTUBE (YT-DLP Simples) ---
+// --- 3. FUNÇÃO YOUTUBE (YT-DLP) ---
 async function fetchYoutubeData(url: string, ytDlp: YTDlpWrap) {
   try {
     const args = [
@@ -77,8 +85,8 @@ async function fetchYoutubeData(url: string, ytDlp: YTDlpWrap) {
         views: output.view_count || 0,
         likes: output.like_count || 0,
         comments: output.comment_count || 0,
-        saves: 0, // Youtube não divulga saves publicamente
-        shares: 0 // Nem shares exatos via scraping simples
+        saves: 0, 
+        shares: 0 
     };
   } catch (e) {
     console.error('Erro Youtube:', e);
@@ -88,13 +96,12 @@ async function fetchYoutubeData(url: string, ytDlp: YTDlpWrap) {
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { secret } = req.query;
+  // Verifica a senha do .env da Railway
   if (secret !== process.env.API_SECRET_KEY) { 
      return res.status(401).json({ error: 'Senha incorreta' });
   }
 
-  // =================================================================================
-  // MODO 1: VERIFICAR STATUS (POLLING - GET) - Usado pelo Google Sheets
-  // =================================================================================
+  // MODO GET (POLLING PARA INSTAGRAM)
   if (req.method === 'GET' && req.query.runId) {
     const runId = req.query.runId as string;
     
@@ -111,19 +118,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             const results: Record<string, any> = {};
 
             apifyResults.forEach((item: any) => {
-                const matchUrl = item.url || item.inputUrl; 
-                // Prioridade de Views para Reels
+                // Tenta pegar a URL de várias formas que o Apify retorna
+                const matchUrl = item.url || item.inputUrl || (item.input && item.input.url); 
+                
                 const views = item.videoPlayCount || item.playCount || item.videoViewCount || item.viewCount || 0;
                 
-                results[matchUrl] = {
-                    name_account: item.ownerUsername || 'Desconhecido',
-                    date: item.timestamp ? new Date(item.timestamp).toLocaleDateString('pt-BR') : '-',
-                    views: views, 
-                    likes: item.likesCount || item.likeCount || 0, 
-                    comments: item.commentsCount || item.commentCount || 0,
-                    saves: 0,
-                    shares: 0
-                };
+                if (matchUrl) {
+                    results[matchUrl] = {
+                        name_account: item.ownerUsername || 'Desconhecido',
+                        date: item.timestamp ? new Date(item.timestamp).toLocaleDateString('pt-BR') : '-',
+                        views: views, 
+                        likes: item.likesCount || item.likeCount || 0, 
+                        comments: item.commentsCount || item.commentCount || 0,
+                        saves: 0,
+                        shares: 0
+                    };
+                }
             });
             
             return res.status(200).json({ status: 'DONE', results });
@@ -137,9 +147,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   }
 
-  // =================================================================================
-  // MODO 2: INICIAR TAREFA (POST)
-  // =================================================================================
+  // MODO POST (INÍCIO)
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const items = req.body.items || [];
@@ -149,14 +157,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const otherItems = items.filter((i: any) => i.platform !== 'instagram');
   const results: Record<string, any> = {};
 
-  // 1. INSTAGRAM (Via Apify - Assíncrono)
+  // 1. INSTAGRAM (Start Apify)
   let apifyRunId = null;
   if (instaItems.length > 0) {
     try {
         if (!process.env.APIFY_TOKEN) throw new Error("APIFY_TOKEN não configurado");
         const client = new ApifyClient({ token: process.env.APIFY_TOKEN });
         
-        // Inicia o Crawler e retorna o ID imediatamente
         const run = await client.actor("apify/instagram-scraper").start({
             directUrls: instaItems.map((i: any) => i.url),
             resultsType: "posts",
@@ -165,41 +172,37 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         apifyRunId = run.id;
     } catch (e: any) {
         console.error(e);
-        // Se falhar o start, marcamos erro nos itens
         instaItems.forEach((i: any) => results[i.url] = { error: 'Falha Start Apify' });
     }
   }
 
-  // 2. TIKTOK E YOUTUBE (Processamento Imediato)
+  // 2. TIKTOK & YOUTUBE (Processamento Imediato)
   if (otherItems.length > 0) {
-     // Prepara binário apenas se tiver Youtube na lista
+     // Configura yt-dlp APENAS se tiver youtube
      let ytDlp: YTDlpWrap | null = null;
      if (otherItems.some((i: any) => i.platform === 'youtube')) {
         try {
-            const binaryPath = path.join(os.tmpdir(), 'yt-dlp_linux_sheet_final');
+            const binaryPath = path.join(os.tmpdir(), 'yt-dlp_linux_final');
             await ensureBinaryExists(binaryPath);
             ytDlp = new YTDlpWrap(binaryPath);
         } catch(e) { console.error("Erro setup yt-dlp", e); }
      }
 
-     // Processa tudo em paralelo
      await Promise.all(otherItems.map(async (item: any) => {
+        // --- AQUI ESTÁ A MUDANÇA: TIKTOK USA API EXTERNA ---
         if (item.platform === 'tiktok') {
-            // TIKTOK: Usa API Externa (TikWM) - Zero Bloqueio
             results[item.url] = await fetchTikTokData(item.url);
-        } else if (item.platform === 'youtube' && ytDlp) {
-            // YOUTUBE: Usa yt-dlp local
+        } 
+        // --- YOUTUBE CONTINUA COM YT-DLP ---
+        else if (item.platform === 'youtube' && ytDlp) {
             results[item.url] = await fetchYoutubeData(item.url, ytDlp);
-        } else {
-            results[item.url] = { error: 'Plataforma não suportada' };
+        } 
+        else {
+            results[item.url] = { error: 'Plataforma/Ferramenta indisponível' };
         }
      }));
   }
 
-  // Retorno unificado
-  // O Google Apps Script vai receber:
-  // - runId (se tiver Instagram pendente)
-  // - results (dados já prontos do TikTok/Youtube)
   return res.status(200).json({ 
       runId: apifyRunId, 
       results: results,

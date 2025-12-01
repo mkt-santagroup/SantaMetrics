@@ -9,7 +9,7 @@ import { Readable } from 'stream';
 import { finished } from 'stream/promises';
 import { ApifyClient } from 'apify-client';
 
-// --- Funções Auxiliares (Binário) ---
+// --- Funções Auxiliares ---
 async function downloadBinary(url: string, dest: string) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Falha download binário: ${res.statusText}`);
@@ -19,9 +19,10 @@ async function downloadBinary(url: string, dest: string) {
 }
 
 async function ensureBinaryExists(destination: string) {
+  // Truque: Se o arquivo já existe mas é antigo (0 bytes ou erro), baixa de novo
   if (fs.existsSync(destination)) {
     const stats = fs.statSync(destination);
-    if (stats.size > 1000000) return;
+    if (stats.size > 1000000) return; 
   }
   const DOWNLOAD_URL = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux';
   await downloadBinary(DOWNLOAD_URL, destination);
@@ -35,7 +36,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   // =================================================================================
-  // MODO 1: VERIFICAR STATUS (POLLING) - GET
+  // MODO 1: VERIFICAR STATUS (GET)
   // =================================================================================
   if (req.method === 'GET' && req.query.runId) {
     const runId = req.query.runId as string;
@@ -44,17 +45,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const client = new ApifyClient({ token: process.env.APIFY_TOKEN });
 
     try {
-        const run = client.run(runId);
-        const { status } = await run.get() || {};
+        const runClient = client.run(runId);
+        const runInfo = await runClient.get();
+        const status = runInfo?.status;
 
         if (status === 'SUCCEEDED') {
-            // Se acabou, pega os dados e formata
-            const { items: apifyResults } = await client.dataset((await run.get())!.defaultDatasetId).listItems();
+            const { items: apifyResults } = await client.dataset(runInfo!.defaultDatasetId).listItems();
             const results: Record<string, any> = {};
 
             apifyResults.forEach((item: any) => {
                 const matchUrl = item.url || item.inputUrl; 
-                // Prioridade de Views para Reels
                 const views = item.videoPlayCount || item.playCount || item.videoViewCount || item.viewCount || 0;
                 
                 results[matchUrl] = {
@@ -67,14 +67,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                     shares: 0
                 };
             });
-            
             return res.status(200).json({ status: 'DONE', results });
         } else if (status === 'RUNNING' || status === 'READY') {
-            // Ainda rodando
             return res.status(200).json({ status: 'PENDING' });
         } else {
-            // Falhou ou Abortou
-            return res.status(200).json({ status: 'FAILED', error: 'Apify falhou ou parou.' });
+            return res.status(200).json({ status: 'FAILED', error: 'Apify falhou.' });
         }
     } catch (e: any) {
         return res.status(500).json({ error: e.message });
@@ -82,7 +79,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   // =================================================================================
-  // MODO 2: INICIAR PROCESSO - POST
+  // MODO 2: INICIAR TAREFA (POST)
   // =================================================================================
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
@@ -93,37 +90,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const otherItems = items.filter((i: any) => i.platform !== 'instagram');
   const results: Record<string, any> = {};
 
-  // --- ESTRATÉGIA INSTAGRAM (ASSÍNCRONA) ---
+  // 1. INSTAGRAM (APIFY)
   let apifyRunId = null;
   if (instaItems.length > 0) {
     try {
         if (!process.env.APIFY_TOKEN) throw new Error("APIFY_TOKEN não configurado");
         const client = new ApifyClient({ token: process.env.APIFY_TOKEN });
         
-        // .start() inicia e devolve o ID imediatamente (NÃO ESPERA ACABAR)
         const run = await client.actor("apify/instagram-scraper").start({
             directUrls: instaItems.map((i: any) => i.url),
             resultsType: "posts",
             searchLimit: 1,
         });
-        
-        apifyRunId = run.id; // Guarda o ID para o front monitorar
+        apifyRunId = run.id;
     } catch (e: any) {
         console.error(e);
-        return res.status(500).json({ error: 'Falha ao iniciar Apify' });
+        return res.status(500).json({ error: 'Falha Apify' });
     }
   }
 
-  // --- ESTRATÉGIA OUTROS (SÍNCRONA - RÁPIDA) ---
+  // 2. TIKTOK/YOUTUBE (YT-DLP COM BYPASS)
   if (otherItems.length > 0) {
-     // ... (Mantém a lógica do yt-dlp do código anterior aqui para brevidade) ...
-     // Vou resumir para focar na solução, mas o ideal é manter seu código yt-dlp aqui
-     // Se quiser, posso repostar o bloco yt-dlp, mas ele não mudou.
-     // Assumindo que você manteve o bloco yt-dlp aqui e populou 'results'.
      try {
         const binaryPath = path.join(os.tmpdir(), 'yt-dlp_linux_sheet_batch');
         await ensureBinaryExists(binaryPath);
         let tempCookiePath = '';
+        
         if (otherItems.some((i: any) => i.platform === 'tiktok')) {
             const { data: s } = await supabase.from('SETTINGS').select('value').eq('key', 'tiktok_cookies').single();
             if (s?.value) {
@@ -131,33 +123,45 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 fs.writeFileSync(tempCookiePath, s.value);
             }
         }
+
         await Promise.all(otherItems.map(async (item: any) => {
             try {
                 const ytDlp = new YTDlpWrap(binaryPath);
                 let args = [ item.url, '--dump-json', '--skip-download', '--no-warnings', '--no-check-certificate' ];
+                
                 if (tempCookiePath && item.platform === 'tiktok') {
                     args.push('--cookies', tempCookiePath);
-                    args.push('--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
+                    // --- AQUI ESTÁ O TRUQUE DO BYPASS (USER AGENT NOVO) ---
+                    // Simulando um Chrome 120 no Windows 10 para parecer humano
+                    args.push('--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
                 }
+
                 const stdout = await ytDlp.execPromise(args);
                 const output = JSON.parse(stdout);
+
                 results[item.url] = {
-                    name_account: output.uploader || 'Desconhecido',
-                    date: new Date().toLocaleDateString('pt-BR'),
+                    name_account: output.uploader || output.channel || 'Desconhecido',
+                    date: output.upload_date 
+                        ? `${output.upload_date.substring(6,8)}/${output.upload_date.substring(4,6)}/${output.upload_date.substring(0,4)}` 
+                        : new Date().toLocaleDateString('pt-BR'),
                     views: output.view_count || output.play_count || 0,
                     likes: output.like_count || 0,
                     comments: output.comment_count || 0,
-                    saves: 0, shares: output.repost_count || 0
+                    saves: output.save_count || 0,
+                    shares: output.repost_count || output.share_count || 0
                 };
-            } catch (e) { results[item.url] = { error: 'Erro Link' }; }
+            } catch (e) {
+                // Se der erro, tenta retornar o erro sem quebrar tudo
+                results[item.url] = { error: 'Bloqueio/Erro Link' };
+            }
         }));
+
         if (tempCookiePath && fs.existsSync(tempCookiePath)) fs.unlinkSync(tempCookiePath);
-     } catch (e) {}
+     } catch (e) {
+         console.error("Erro YT-DLP:", e);
+     }
   }
 
-  // RETORNO INTELIGENTE
-  // Se tem runId do Apify, manda ele para o Sheets monitorar.
-  // Se tem resultados do yt-dlp, manda junto.
   return res.status(200).json({ 
       runId: apifyRunId, 
       results: results,

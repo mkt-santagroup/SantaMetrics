@@ -1,7 +1,4 @@
-# nixpacks.toml
-
 [phases.setup]
-# Instala Node, Python3, FFmpeg e o yt-dlp nativo do sistema Linux
 nixPkgs = ["nodejs", "python3", "ffmpeg", "yt-dlp"]
 
 [phases.install]

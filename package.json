@@ -18,7 +18,8 @@
     "react-day-picker": "^9.11.2",
     "react-dom": "19.2.0",
     "recharts": "^3.5.0",
-    "youtube-dl-exec": "^3.0.27"
+    "youtube-dl-exec": "^3.0.27",
+    "yt-dlp-wrap": "^2.3.12"
   },
   "devDependencies": {
     "@types/js-cookie": "^3.0.6",

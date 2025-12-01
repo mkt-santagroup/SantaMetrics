@@ -2,13 +2,14 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
+const os = require('os');
 
-// Tenta importar a lib. Se falhar, não crasha o build, mas avisa.
+// Tenta importar a lib
 let YTDlpWrap;
 try {
     YTDlpWrap = require('yt-dlp-wrap').default;
 } catch (e) {
-    console.error("❌ Erro: yt-dlp-wrap não instalado. O 'npm install' rodou?");
+    console.error("❌ Erro: yt-dlp-wrap não instalado.");
     process.exit(1);
 }
 
@@ -18,13 +19,18 @@ try {
     // Define o nome do arquivo final
     const binaryName = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp';
     const binaryPath = path.join(__dirname, binaryName);
+    
+    // Detecta a plataforma correta para o download do GitHub
+    // No Railway (Linux), precisamos explicitamente pedir a versão 'linux'
+    // para vir o binário standalone, e não o script python genérico.
+    const platform = process.platform === 'win32' ? 'win32' : 'linux';
 
     try {
-        // Baixa o binário oficial mais recente do GitHub
-        await YTDlpWrap.downloadFromGithub(binaryPath);
+        // O 3º argumento força a plataforma correta
+        await YTDlpWrap.downloadFromGithub(binaryPath, undefined, platform);
         console.log(`✅ [SETUP] Download concluído em: ${binaryPath}`);
 
-        // No Linux (Railway), precisamos dar permissão de execução (chmod +x)
+        // No Linux (Railway), precisamos dar permissão de execução
         if (process.platform !== 'win32') {
             try {
                 fs.chmodSync(binaryPath, '755');

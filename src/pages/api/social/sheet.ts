@@ -7,8 +7,9 @@ import os from 'os';
 import YTDlpWrap from 'yt-dlp-wrap';
 import { Readable } from 'stream';
 import { finished } from 'stream/promises';
+import { ApifyClient } from 'apify-client'; // <--- Nova Importação
 
-// --- Reutilizando a lógica do seu add.ts para garantir que funcione no Railway ---
+// --- Funções Auxiliares do YT-DLP (Mantidas para TikTok/Youtube) ---
 async function downloadBinary(url: string, dest: string) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Falha ao baixar binário: ${res.statusText}`);
@@ -28,10 +29,8 @@ async function ensureBinaryExists(destination: string) {
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  // 1. Segurança: Agora compara com a variável da Railway
+  // 1. Segurança
   const { secret } = req.query;
-  
-  // MUDANÇA AQUI: Usar process.env.API_SECRET_KEY ao invés de 'santa123'
   if (secret !== process.env.API_SECRET_KEY) { 
      return res.status(401).json({ error: 'Senha incorreta' });
   }
@@ -41,21 +40,72 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const { url, platform } = req.body;
   if (!url) return res.status(400).json({ error: 'URL faltando' });
 
+  // =================================================================================
+  // LÓGICA NOVA: INSTAGRAM VIA APIFY
+  // =================================================================================
+  if (platform === 'instagram') {
+    if (!process.env.APIFY_TOKEN) {
+        return res.status(500).json({ error: 'APIFY_TOKEN não configurado no servidor' });
+    }
+
+    try {
+        const client = new ApifyClient({
+            token: process.env.APIFY_TOKEN,
+        });
+
+        // Chama o Actor "apify/instagram-scraper" (O mesmo da sua imagem)
+        const run = await client.actor("apify/instagram-scraper").call({
+            directUrls: [url],
+            resultsType: "posts", // Queremos detalhes do post
+            searchLimit: 1,
+        });
+
+        // Pega os resultados do dataset
+        const { items } = await client.dataset(run.defaultDatasetId).listItems();
+        
+        if (!items || items.length === 0) {
+            return res.status(404).json({ error: 'Instagram não retornou dados. Perfil privado?' });
+        }
+
+        const item: any = items[0];
+
+        // Formata a data (O Apify retorna ISO string ex: 2023-12-25T10:00:00.000Z)
+        const dateObj = new Date(item.timestamp);
+        const dateFormatted = dateObj.toLocaleDateString('pt-BR');
+
+        const data = {
+            name_account: item.ownerUsername || 'Desconhecido',
+            date: dateFormatted,
+            views: item.videoViewCount || item.videoPlayCount || 0, // Views se for vídeo/reels
+            likes: item.likesCount || 0,
+            comments: item.commentsCount || 0,
+            saves: 0, // A API pública geralmente não entrega Saves/Shares
+            shares: 0 
+        };
+
+        return res.status(200).json(data);
+
+    } catch (error: any) {
+        console.error("Erro Apify:", error);
+        return res.status(500).json({ error: 'Erro ao consultar Apify: ' + error.message });
+    }
+  }
+
+  // =================================================================================
+  // LÓGICA ANTIGA: TIKTOK E YOUTUBE (VIA YT-DLP)
+  // =================================================================================
   let tempCookiePath = '';
 
   try {
-    // 2. Prepara o binário (igual ao add.ts)
     const binaryPath = path.join(os.tmpdir(), 'yt-dlp_linux_standalone');
     await ensureBinaryExists(binaryPath);
     const ytDlp = new YTDlpWrap(binaryPath);
 
-    // 3. Cookies (Se for Tiktok/Insta)
-    if (platform === 'tiktok' || platform === 'instagram') {
-        const dbKey = platform === 'tiktok' ? 'tiktok_cookies' : 'instagram_cookies';
+    if (platform === 'tiktok') {
         const { data: settings } = await supabase
             .from('SETTINGS')
             .select('value')
-            .eq('key', dbKey)
+            .eq('key', 'tiktok_cookies')
             .single();
 
         if (settings?.value) {
@@ -64,7 +114,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
     }
 
-    // 4. Executa o comando
     let args = [
       url,
       '--dump-json',
@@ -81,10 +130,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const stdout = await ytDlp.execPromise(args);
     const output = JSON.parse(stdout);
 
-    // 5. Retorna os dados limpos para a planilha
     const data = {
         name_account: output.uploader || output.channel || output.uploader_id || 'Desconhecido',
-        // Formata data YYYYMMDD para DD/MM/YYYY
         date: output.upload_date 
               ? `${output.upload_date.substring(6,8)}/${output.upload_date.substring(4,6)}/${output.upload_date.substring(0,4)}` 
               : new Date().toLocaleDateString('pt-BR'),
@@ -98,7 +145,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json(data);
 
   } catch (error: any) {
-    console.error("Erro Planilha:", error);
+    console.error("Erro YT-DLP:", error);
     return res.status(500).json({ error: error.message || 'Erro ao processar' });
   } finally {
     if (tempCookiePath && fs.existsSync(tempCookiePath)) fs.unlinkSync(tempCookiePath);

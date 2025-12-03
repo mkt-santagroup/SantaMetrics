@@ -1,3 +1,5 @@
+/* src/components/TriggerCallModal.module.css */
+
 .overlay {
   position: fixed;
   top: 0;
@@ -16,7 +18,7 @@
 .modal {
   background: var(--bg-card);
   width: 100%;
-  max-width: 550px; /* Aumentei um pouco para caber melhor */
+  max-width: 550px;
   border-radius: 24px;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
   padding: 2rem;
@@ -25,6 +27,9 @@
   animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
 }
 
 @keyframes scaleIn {
@@ -32,13 +37,14 @@
   to { transform: scale(1); opacity: 1; }
 }
 
-/* --- ABAS (NOVO) --- */
+/* --- ABAS --- */
 .tabs {
   display: flex;
   background: var(--bg-hover);
   padding: 4px;
   border-radius: 12px;
   margin-bottom: 1.5rem;
+  flex-shrink: 0;
 }
 
 .tabBtn {
@@ -68,6 +74,7 @@
 .header {
   margin-bottom: 1.5rem;
   text-align: center;
+  flex-shrink: 0;
 }
 
 .title {
@@ -86,14 +93,117 @@
 .body {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1.2rem;
+  overflow-y: auto;
+  padding-right: 4px; 
 }
 
-/* Seleção de Webhook */
+/* --- SELEÇÃO DE DATAS (NOVO LAYOUT) --- */
+.datesContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 1rem;
+}
+
+/* Grid Superior (Hoje e Ontem) - 2 Colunas */
+.topGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+/* Grid Inferior (Resto) - Tenta colocar 5, mas quebra se precisar */
+.bottomGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+  gap: 8px;
+}
+
+.dateItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  
+  padding: 10px 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  min-height: 70px;
+}
+
+.dateItem:hover {
+  border-color: var(--text-tertiary);
+  transform: translateY(-1px);
+}
+
+.dateItemActive {
+  background: var(--text-primary);
+  border-color: var(--text-primary);
+  color: var(--bg-card);
+}
+
+/* Ajuste para o texto do contador no tema light se o fundo for preto */
+:global([data-theme='light']) .dateItemActive {
+  color: #fff;
+}
+
+.dateLabel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  margin-bottom: 6px;
+  line-height: 1.2;
+}
+
+/* Esconde input nativo */
+.dateLabel input[type="checkbox"] { display: none; }
+
+.dateCount {
+  font-size: 0.65rem;
+  font-weight: 600;
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+  padding: 2px 8px;
+  border-radius: 99px;
+}
+
+.dateItemActive .dateCount {
+  background: rgba(255, 255, 255, 0.2);
+  color: inherit;
+}
+
+/* BOTÃO SELECIONAR TODOS */
+.selectAllBtn {
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary); /* Cor suave padrão */
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+  margin-left: auto; /* Empurra para a direita */
+  transition: color 0.2s;
+}
+.selectAllBtn:hover {
+  color: var(--text-primary);
+}
+
+/* --- WEBHOOK E OUTROS --- */
 .webhookGroup {
   display: flex;
   flex-direction: column;
   gap: 0.8rem;
+  flex-shrink: 0;
 }
 
 .label {
@@ -128,7 +238,7 @@
   background: var(--bg-hover);
 }
 
-/* TEXTAREA (NOVO) */
+/* TEXTAREA */
 .manualInputContainer {
   display: flex;
   flex-direction: column;
@@ -143,11 +253,11 @@
   border-radius: 12px;
   padding: 1rem;
   color: var(--text-primary);
-  font-family: 'Montserrat', monospace; /* Fonte mono para alinhar dados */
+  font-family: 'Montserrat', monospace;
   font-size: 0.85rem;
   resize: none;
   outline: none;
-  box-sizing: border-box; /* Garante que o padding não estoure a largura total */
+  box-sizing: border-box;
 }
 
 .textarea:focus {
@@ -160,7 +270,7 @@
   color: var(--text-tertiary);
 }
 
-/* Checkbox */
+/* Checkbox Global */
 .checkboxWrapper {
   display: flex;
   align-items: center;
@@ -169,12 +279,13 @@
   user-select: none;
   color: var(--text-primary);
   font-weight: 500;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
 }
 
 .checkbox {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   accent-color: #000;
 }
 
@@ -188,13 +299,15 @@
   font-weight: 700;
   font-size: 1.1rem;
   border: 1px solid rgba(16, 185, 129, 0.2);
+  flex-shrink: 0;
 }
 
 /* Botões de Ação */
 .actions {
   display: flex;
   gap: 1rem;
-  margin-top: 1rem;
+  margin-top: auto; 
+  flex-shrink: 0;
 }
 
 .btnCancel {
@@ -235,13 +348,13 @@
   box-shadow: 0 5px 15px rgba(0,0,0,0.2);
 }
 
-/* --- ESTILOS DA TELA DE SUCESSO --- */
+/* TELA DE SUCESSO */
 .successWrapper {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 1rem 0;
+  padding: 2rem 0;
   animation: fadeIn 0.4s ease;
 }
 

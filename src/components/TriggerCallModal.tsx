@@ -2,7 +2,7 @@
 import { useState, useMemo } from 'react';
 import { CallLead } from '@/types/callLeads';
 import styles from './TriggerCallModal.module.css';
-import { format, parseISO, subDays, startOfDay, isSameDay } from 'date-fns'; 
+import { format, subDays, startOfDay, isSameDay } from 'date-fns'; 
 import { ptBR } from 'date-fns/locale';
 import { PhoneOutgoing, Check, Users, FlaskConical } from 'lucide-react';
 
@@ -32,16 +32,15 @@ export default function TriggerCallModal({ data, onClose }: TriggerCallModalProp
   const [isSuccess, setIsSuccess] = useState(false);
   const [progress, setProgress] = useState<{ sent: number, total: number } | null>(null);
 
-  // --- 1. VISUALIZAÇÃO DOS CARDS (LÓGICA PURA) ---
-  // Conta TODOS os leads criados no dia, igual ao Dashboard
+  // --- 1. VISUALIZAÇÃO DOS CARDS ---
   const last7DaysData = useMemo(() => {
     const today = startOfDay(new Date());
     const daysMap = new Map<string, { label: string, subLabel?: string, count: number, dateKey: string }>();
 
-    // Cria os slots dos últimos 7 dias
+    // Cria os slots dos últimos 7 dias (baseado no horário local do seu PC)
     for (let i = 0; i < 7; i++) {
       const d = subDays(today, i);
-      const key = format(d, 'yyyy-MM-dd'); // Chave local
+      const key = format(d, 'yyyy-MM-dd'); // Ex: "2025-12-03"
       
       let label = format(d, "EEE", { locale: ptBR }).toUpperCase(); 
       let subLabel = format(d, "dd/MM");
@@ -52,24 +51,24 @@ export default function TriggerCallModal({ data, onClose }: TriggerCallModalProp
       daysMap.set(key, { label, subLabel, count: 0, dateKey: key });
     }
 
-    // Loop simples: Se tem data válida, conta no dia correspondente.
-    // SEM FILTROS DE STATUS OU LOGIN AQUI.
+    // Loop simples: Conta TODOS do dia ignorando fuso horário
     data.forEach(lead => {
       if (!lead.created_at) return;
       
-      // Converte UTC do banco para data local (mesma lógica do Dashboard)
-      const localDate = parseISO(lead.created_at);
-      const key = format(localDate, 'yyyy-MM-dd');
+      // ⚠️ CORREÇÃO CRÍTICA: 
+      // Em vez de converter fuso (parseISO), pegamos os 10 primeiros caracteres da string.
+      // Se no banco está "2025-12-03 00:33...", vira "2025-12-03".
+      // Isso garante que ele caia no balde "HOJE", mesmo sendo madrugada UTC.
+      const dateKey = lead.created_at.substring(0, 10);
 
-      if (daysMap.has(key)) {
-        daysMap.get(key)!.count++;
+      if (daysMap.has(dateKey)) {
+        daysMap.get(dateKey)!.count++;
       }
     });
 
     return Array.from(daysMap.values());
   }, [data]); 
 
-  // Separação visual: 2 em cima (Hoje/Ontem), 5 embaixo
   const topDays = last7DaysData.slice(0, 2);
   const bottomDays = last7DaysData.slice(2);
 
@@ -85,24 +84,20 @@ export default function TriggerCallModal({ data, onClose }: TriggerCallModalProp
     setSelectedDates(prev => prev.includes(dateKey) ? prev.filter(d => d !== dateKey) : [...prev, dateKey]);
   };
 
-  // --- 2. LISTA DE ENVIO (FILTRADA) ---
-  // Aqui aplicamos os filtros de segurança na hora de disparar
+  // --- 2. LISTA DE ENVIO (AGORA PUXA TUDO DO DIA) ---
   const leadsParaEnviar = useMemo(() => {
     const selectedSet = new Set(selectedDates);
     
     return data.filter(lead => {
       if (!lead.created_at) return false;
       
-      const localDate = parseISO(lead.created_at);
-      const key = format(localDate, 'yyyy-MM-dd');
+      // ⚠️ AQUI TAMBÉM: Usa substring para bater exatamente com a data visual
+      const dateKey = lead.created_at.substring(0, 10);
 
       // 1. O dia foi selecionado?
-      if (!selectedSet.has(key)) return false;
+      if (!selectedSet.has(dateKey)) return false;
 
-      // 2. Segurança: Já logou hoje? (Sempre filtra para não incomodar cliente ativo)
-      if (lead.login_no_dia === true) return false;
-
-      // 3. Filtro Opcional: Já atendeu? (Controlado pelo checkbox)
+      // 2. Filtro Opcional: Já atendeu? (Apenas se o checkbox estiver marcado)
       const jaAtendeu = lead.called || lead.called2 || (lead.call1_status && lead.call1_status !== 'NULL' && lead.call1_status !== '');
       if (skipReplicated && jaAtendeu) return false;
 
@@ -137,6 +132,7 @@ export default function TriggerCallModal({ data, onClose }: TriggerCallModalProp
         });
         sentCount++;
         setProgress({ sent: sentCount, total: listToSend.length });
+        // Pequeno delay para não flodar a API
         await new Promise(r => setTimeout(r, 50)); 
       } catch (err) { console.error(err); }
     }
@@ -145,6 +141,7 @@ export default function TriggerCallModal({ data, onClose }: TriggerCallModalProp
   };
 
   const activeCount = mode === 'bulk' ? leadsParaEnviar.length : manualLeads.length;
+  // Botão desabilitado se enviando, ou se não tem leads, ou se não escolheu webhook (no modo bulk)
   const isButtonDisabled = isSending || activeCount === 0 || (mode === 'bulk' && !selectedWebhook);
 
   // Componente Visual do Card de Data

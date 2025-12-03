@@ -7,8 +7,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend 
 } from 'recharts';
 import { 
-  parseISO, startOfDay, endOfDay, format, isValid, 
-  eachDayOfInterval, isSameDay, subDays, addDays 
+  parseISO, startOfDay, endOfDay, format, eachDayOfInterval, isSameDay, subDays, addDays, min, isWithinInterval 
 } from 'date-fns';
 import { useTheme } from '@/context/ThemeContext';
 import { 
@@ -49,37 +48,65 @@ const FIXED_CARD_ORDER = [
 export default function CallDashboardOverview({ data, chartFilter }: CallDashboardOverviewProps) {
   const { theme } = useTheme();
   const [activeTab, setActiveTab] = useState<'call1' | 'call2'>('call1');
-  const [bottomFilter, setBottomFilter] = useState<DateFilterType>({ label: 'Hoje', value: 'today', from: startOfDay(new Date()), to: endOfDay(new Date()) });
+  
+  // Estado local do filtro de data (inicia como Hoje)
+  const [bottomFilter, setBottomFilter] = useState<DateFilterType>({ 
+    label: 'Hoje', 
+    value: 'today', 
+    from: startOfDay(new Date()), 
+    to: endOfDay(new Date()) 
+  });
+  
   const [visibleStatuses, setVisibleStatuses] = useState<string[]>([]); 
 
-  // --- 1. FILTRAGEM BLINDADA (Ignora Timezone) ---
+  // --- 1. FILTRAGEM CORRETA PELO 'CREATED_AT' ---
   const filteredData = useMemo(() => {
+    // Se for 'lifetime', não filtra nada, retorna tudo
     if (bottomFilter.value === 'lifetime') return data;
     
-    // Converte as datas do filtro para string "YYYY-MM-DD"
-    const startStr = bottomFilter.from ? format(bottomFilter.from, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
-    const endStr = bottomFilter.to ? format(bottomFilter.to, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
+    // Datas de início e fim do filtro
+    const startDate = bottomFilter.from || startOfDay(new Date());
+    const endDate = bottomFilter.to || endOfDay(new Date());
 
     return data.filter(item => {
       if (!item.created_at) return false;
-      // Pega a string do banco (ex: "2025-11-29")
-      const itemDateStr = item.created_at.substring(0, 10);
       
-      // Comparação lexical de strings (funciona perfeitamente para datas ISO)
-      return itemDateStr >= startStr && itemDateStr <= endStr;
+      // Converte a data do banco (UTC) para objeto Date local
+      const itemDate = parseISO(item.created_at);
+      
+      // Verifica se está dentro do intervalo (inclusivo)
+      return isWithinInterval(itemDate, { start: startDate, end: endDate });
     });
   }, [data, bottomFilter]);
 
-  // --- 2. PROCESSAMENTO ---
+  // --- 2. PROCESSAMENTO DE DADOS (Contagem e Agrupamento) ---
   const { chartData, statusTotals, totalCalls, cardStatuses, chartStatuses } = useMemo(() => {
-    let start = bottomFilter.from ? startOfDay(bottomFilter.from) : startOfDay(new Date());
-    let end = bottomFilter.to ? endOfDay(bottomFilter.to) : endOfDay(new Date());
+    
+    // --- Definição do Intervalo do Eixo X (Dias) ---
+    let start: Date;
+    let end: Date;
 
-    if (isSameDay(start, end)) {
-      start = subDays(start, 1);
-      end = addDays(end, 1);
+    if (bottomFilter.value === 'lifetime') {
+      // Se for lifetime, busca a data mais antiga no dataset
+      if (filteredData.length > 0) {
+        const validDates = filteredData
+          .filter(d => d.created_at)
+          .map(d => parseISO(d.created_at!));
+        start = validDates.length > 0 ? startOfDay(min(validDates)) : subDays(new Date(), 30);
+      } else {
+        start = subDays(new Date(), 7); // Fallback padrão
+      }
+      end = endOfDay(new Date());
+    } else {
+      // Se não for lifetime, usa o filtro selecionado
+      start = bottomFilter.from ? startOfDay(bottomFilter.from) : startOfDay(new Date());
+      end = bottomFilter.to ? endOfDay(bottomFilter.to) : endOfDay(new Date());
     }
 
+    // Garante que o intervalo seja válido para o eachDayOfInterval
+    if (start > end) start = end;
+
+    // Gera todos os dias do intervalo para o gráfico
     const allDays = eachDayOfInterval({ start, end });
     const dailyMap: Record<string, any> = {};
 
@@ -90,79 +117,78 @@ export default function CallDashboardOverview({ data, chartFilter }: CallDashboa
 
     const totals: Record<string, number> = {};
     const foundStatuses = new Set<string>();
-    let totalCount = 0;
+    let totalAttemptsCount = 0; // Contador de tentativas (Total Calls)
 
-    // --- CARDS (Usa filteredData que já está corrigido) ---
+    // --- LOOP PRINCIPAL ---
     filteredData.forEach(item => {
-      let isCountedForCard = false;
-      let cardStatus: string | null = null;
-
-      if (activeTab === 'call1') {
-        if (item.called === true || item.called2 === true) {
-          isCountedForCard = true;
-          cardStatus = item.call1_status;
-        }
-      } else {
-        if (item.called3 === true || item.called4 === true) {
-          isCountedForCard = true;
-          cardStatus = item.call2_status;
-        }
-      }
-
-      if (isCountedForCard) {
-        let statusKey = cardStatus ? cardStatus.trim().toUpperCase() : 'NULL';
-        if (statusKey === '') statusKey = 'NULL';
-        
-        totalCount++;
-        totals[statusKey] = (totals[statusKey] || 0) + 1;
-      }
-    });
-
-    // --- GRÁFICO (Re-itera 'data' para garantir range visual correto) ---
-    data.forEach(item => {
       if (!item.created_at) return;
-      
-      // FIX TIMEZONE: Usa a string do banco
-      const dateKey = item.created_at.substring(0, 10);
-      
-      if (dailyMap[dateKey]) {
-        // Processa CALL 1
-        if (item.called || item.called2) {
-          let s1 = item.call1_status ? item.call1_status.trim().toUpperCase() : 'NULL';
-          if (s1 === '') s1 = 'NULL';
-          foundStatuses.add(s1);
-          dailyMap[dateKey][`call1_${s1}`] = (dailyMap[dateKey][`call1_${s1}`] || 0) + 1;
-        }
+      const itemDate = parseISO(item.created_at);
+      const dateKey = format(itemDate, 'yyyy-MM-dd');
 
-        // Processa CALL 2
-        if (item.called3 || item.called4) {
-          let s2 = item.call2_status ? item.call2_status.trim().toUpperCase() : 'NULL';
-          if (s2 === '') s2 = 'NULL';
-          foundStatuses.add(s2);
-          dailyMap[dateKey][`call2_${s2}`] = (dailyMap[dateKey][`call2_${s2}`] || 0) + 1;
-        }
+      // Se o dia está fora do range visual do gráfico, ignoramos para o gráfico, 
+      // mas se o filtro for lifetime, o dailyMap deve cobrir tudo.
+      if (!dailyMap[dateKey]) {
+         // Se for lifetime e cair aqui, podemos adicionar dinamicamente ou ignorar. 
+         // Com a lógica acima de 'start', deve cobrir.
+         if (bottomFilter.value !== 'lifetime') return;
+         // Se for lifetime, cria a chave on-the-fly se faltou (segurança)
+         dailyMap[dateKey] = { name: format(itemDate, 'dd/MM'), rawDate: dateKey };
+      }
+
+      // --- LÓGICA DE CONTAGEM DE TENTATIVAS (TOTAL) ---
+      let attemptsInThisTab = 0;
+      if (activeTab === 'call1') {
+        if (item.called) attemptsInThisTab++;
+        if (item.called2) attemptsInThisTab++;
+      } else {
+        if (item.called3) attemptsInThisTab++;
+        if (item.called4) attemptsInThisTab++;
+      }
+      totalAttemptsCount += attemptsInThisTab;
+
+      // --- LÓGICA DE STATUS (TEXTO) ---
+      // Pega o status textual correspondente à aba
+      const rawStatus = activeTab === 'call1' ? item.call1_status : item.call2_status;
+      const cleanStatus = rawStatus ? rawStatus.trim().toUpperCase() : '';
+
+      // Se tiver status válido (não nulo/vazio), contabiliza
+      if (cleanStatus && cleanStatus !== 'NULL') {
+        // Totais para os Cards
+        totals[cleanStatus] = (totals[cleanStatus] || 0) + 1;
+        
+        // Totais por Dia para o Gráfico
+        // Chave do gráfico ex: "call1_ANSWERED" ou "call2_BUSY"
+        const chartKey = `${activeTab}_${cleanStatus}`;
+        dailyMap[dateKey][chartKey] = (dailyMap[dateKey][chartKey] || 0) + 1;
+        
+        foundStatuses.add(cleanStatus);
       }
     });
 
+    // Ordena os dias cronologicamente
     const sortedData = Object.values(dailyMap).sort((a: any, b: any) => a.rawDate.localeCompare(b.rawDate));
 
+    // Prepara lista de status para renderizar
     const existingStatuses = Array.from(foundStatuses);
     const orderedForCards = FIXED_CARD_ORDER.filter(s => existingStatuses.includes(s));
-    existingStatuses.forEach(s => { if (!FIXED_CARD_ORDER.includes(s)) orderedForCards.push(s); });
-    const orderedForChart = [...orderedForCards]; 
-
+    // Adiciona status não mapeados ao final
+    existingStatuses.forEach(s => { 
+        if (!FIXED_CARD_ORDER.includes(s)) orderedForCards.push(s); 
+    });
+    
     return { 
       chartData: sortedData, 
       statusTotals: totals, 
-      totalCalls: totalCount,
+      totalCalls: totalAttemptsCount, // Total de 'TRUEs'
       cardStatuses: orderedForCards,
-      chartStatuses: orderedForChart 
+      chartStatuses: [...orderedForCards] 
     };
-  }, [filteredData, activeTab, bottomFilter, data]); 
+  }, [filteredData, activeTab, bottomFilter]); 
 
+  // Atualiza visibilidade quando novos status aparecem
   useEffect(() => {
     setVisibleStatuses(chartStatuses);
-  }, [chartStatuses.length]); 
+  }, [chartStatuses.length, JSON.stringify(chartStatuses)]); 
 
   const toggleStatus = (status: string) => {
     setVisibleStatuses(prev => 
@@ -175,8 +201,9 @@ export default function CallDashboardOverview({ data, chartFilter }: CallDashboa
   
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
-      const call1Items = payload.filter((p: any) => p.dataKey.startsWith('call1_'));
-      const call2Items = payload.filter((p: any) => p.dataKey.startsWith('call2_'));
+      // Filtra payload baseado na aba ativa para não poluir
+      const currentTabPrefix = `${activeTab}_`;
+      const items = payload.filter((p: any) => p.dataKey.startsWith(currentTabPrefix));
 
       return (
         <div style={{
@@ -187,36 +214,24 @@ export default function CallDashboardOverview({ data, chartFilter }: CallDashboa
           color: theme === 'dark' ? '#fff' : '#000',
           fontFamily: 'Montserrat, sans-serif',
           padding: '12px',
-          minWidth: '200px'
+          minWidth: '180px',
+          zIndex: 100
         }}>
           <p style={{ fontWeight: '800', marginBottom: '8px', borderBottom: '1px solid #333', paddingBottom: '4px' }}>{label}</p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-            <div>
-              <p style={{ fontSize: '0.7rem', fontWeight: '700', textTransform: 'uppercase', color: '#9ca3af', marginBottom: '6px' }}>1ª Ligação</p>
-              {call1Items.map((item: any) => {
-                 const originalStatus = item.dataKey.replace('call1_', '');
-                 const config = STATUS_CONFIG[originalStatus] || { label: originalStatus };
-                 return (
-                   <div key={item.dataKey} style={{ color: item.color, fontSize: '0.8rem', fontWeight: '600', marginBottom: '2px' }}>
-                     {config.label}: {item.value}
-                   </div>
-                 )
-              })}
-              {call1Items.length === 0 && <span style={{fontSize:'0.75rem', opacity:0.5}}>-</span>}
-            </div>
-            <div>
-              <p style={{ fontSize: '0.7rem', fontWeight: '700', textTransform: 'uppercase', color: '#9ca3af', marginBottom: '6px' }}>2ª Ligação</p>
-              {call2Items.map((item: any) => {
-                 const originalStatus = item.dataKey.replace('call2_', '');
-                 const config = STATUS_CONFIG[originalStatus] || { label: originalStatus };
-                 return (
-                   <div key={item.dataKey} style={{ color: item.color, fontSize: '0.8rem', fontWeight: '600', marginBottom: '2px' }}>
-                     {config.label}: {item.value}
-                   </div>
-                 )
-              })}
-              {call2Items.length === 0 && <span style={{fontSize:'0.75rem', opacity:0.5}}>-</span>}
-            </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <p style={{ fontSize: '0.7rem', fontWeight: '700', textTransform: 'uppercase', color: '#9ca3af', marginBottom: '2px' }}>
+              {activeTab === 'call1' ? '1ª Ligação' : '2ª Ligação'}
+            </p>
+            {items.map((item: any) => {
+               const originalStatus = item.dataKey.replace(currentTabPrefix, '');
+               const config = STATUS_CONFIG[originalStatus] || { label: originalStatus };
+               return (
+                 <div key={item.dataKey} style={{ color: item.color, fontSize: '0.8rem', fontWeight: '600' }}>
+                   {config.label}: {item.value}
+                 </div>
+               )
+            })}
+            {items.length === 0 && <span style={{fontSize:'0.75rem', opacity:0.5}}>Sem dados</span>}
           </div>
         </div>
       );
@@ -227,6 +242,7 @@ export default function CallDashboardOverview({ data, chartFilter }: CallDashboa
   return (
     <div className={styles.container}>
       
+      {/* Gráfico Principal (Global) */}
       <SmartChart data={data} dateFilter={chartFilter} />
 
       <div className={styles.sectionHeader}>
@@ -240,28 +256,46 @@ export default function CallDashboardOverview({ data, chartFilter }: CallDashboa
         <DateRangePicker currentFilter={bottomFilter} onFilterChange={setBottomFilter} />
       </div>
 
+      {/* Cards de Status */}
       <div className={styles.statsGrid}>
+        {/* Card de Total de Tentativas */}
         <div className={styles.statCard} style={{ cursor: 'default', borderColor: theme === 'dark' ? '#333' : '#e5e7eb' }}>
            <div className={styles.activeIndicator} style={{ background: theme === 'dark' ? '#fff' : '#000' }} />
-           <div className={styles.statLabel}><BarChart3 size={14} /> Total (Aba Atual)</div>
+           <div className={styles.statLabel}><BarChart3 size={14} /> Tentativas Totais</div>
            <div className={styles.statValue}>{totalCalls}</div>
         </div>
+        
+        {/* Cards Dinâmicos por Status */}
         {cardStatuses.map(status => {
           const config = STATUS_CONFIG[status] || { label: status, color: '#888', icon: HelpCircle };
           const Icon = config.icon;
           const count = statusTotals[status];
-          const percent = totalCalls > 0 ? ((count / totalCalls) * 100).toFixed(1) : '0.0';
+          // Porcentagem em relação ao total de STATUS capturados (não de tentativas)
+          // Isso evita distorção se houver muitas tentativas sem status
+          const totalStatusCount = Object.values(statusTotals).reduce((a, b) => a + b, 0);
+          const percent = totalStatusCount > 0 ? ((count / totalStatusCount) * 100).toFixed(1) : '0.0';
           const isActive = visibleStatuses.includes(status);
+          
           return (
-            <div key={status} className={`${styles.statCard} ${!isActive ? styles.cardInactive : ''}`} onClick={() => toggleStatus(status)} style={{ borderColor: isActive ? config.color : 'var(--border-color)' }}>
+            <div 
+              key={status} 
+              className={`${styles.statCard} ${!isActive ? styles.cardInactive : ''}`} 
+              onClick={() => toggleStatus(status)} 
+              style={{ borderColor: isActive ? config.color : 'var(--border-color)' }}
+            >
               <div className={styles.activeIndicator} style={{ background: isActive ? config.color : 'transparent' }} />
-              <div className={styles.statLabel} style={{ color: isActive ? config.color : 'var(--text-secondary)' }}><Icon size={14} />{config.label}</div>
-              <div className={styles.statValue}>{count} <span className={styles.statPercent}>{percent}%</span></div>
+              <div className={styles.statLabel} style={{ color: isActive ? config.color : 'var(--text-secondary)' }}>
+                <Icon size={14} />{config.label}
+              </div>
+              <div className={styles.statValue}>
+                {count} <span className={styles.statPercent}>{percent}%</span>
+              </div>
             </div>
           );
         })}
       </div>
 
+      {/* Gráfico de Barras */}
       <div className={styles.chartContainer}>
         <div style={{ width: '100%', height: 400 }}>
           <ResponsiveContainer>
@@ -295,45 +329,28 @@ export default function CallDashboardOverview({ data, chartFilter }: CallDashboa
                 content={() => (
                   <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginBottom: '10px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <div style={{ width: 10, height: 10, background: '#fff', borderRadius: '50%', opacity: 0.8 }}></div> 1ª Ligação
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <div style={{ width: 10, height: 10, background: '#fff', borderRadius: '50%', opacity: 0.4 }}></div> 2ª Ligação
+                      <div style={{ width: 10, height: 10, background: '#fff', borderRadius: '50%', opacity: 0.8 }}></div>
+                      {activeTab === 'call1' ? '1ª Ligação' : '2ª Ligação'}
                     </div>
                   </div>
                 )}
               />
 
+              {/* Renderiza as Barras baseadas na Aba Ativa */}
               {chartStatuses.map((status) => {
                 if (!visibleStatuses.includes(status)) return null;
                 const config = STATUS_CONFIG[status] || { color: '#888', label: status };
-                return (
-                  <Bar 
-                    key={`call1-${status}`} 
-                    dataKey={`call1_${status}`} 
-                    name={status} 
-                    stackId="a"
-                    fill={config.color} 
-                    radius={[0, 0, 0, 0]} 
-                    barSize={24}
-                    animationDuration={1000}
-                  />
-                );
-              })}
+                const dataKey = `${activeTab}_${status}`; // Ex: call1_ANSWERED
 
-              {chartStatuses.map((status) => {
-                if (!visibleStatuses.includes(status)) return null;
-                const config = STATUS_CONFIG[status] || { color: '#888', label: status };
                 return (
                   <Bar 
-                    key={`call2-${status}`} 
-                    dataKey={`call2_${status}`} 
+                    key={dataKey} 
+                    dataKey={dataKey} 
                     name={status} 
-                    stackId="b"
+                    stackId="a" // Empilha tudo numa única barra por dia
                     fill={config.color} 
-                    fillOpacity={0.6}
-                    radius={[0, 0, 0, 0]} 
-                    barSize={24}
+                    radius={[0, 0, 0, 0]} // Raio zero para empilhamento limpo
+                    barSize={32}
                     animationDuration={1000}
                   />
                 );

@@ -9,32 +9,35 @@ export interface CallLead {
   whatsapp: string | null;
   login_no_dia: boolean | null;
   
-  // Booleanos de controle de atendimento/processamento
+  // Booleanos de controle
   call_1: boolean | null;
   call_2: boolean | null;
   
-  // Tentativas (Flags de disparo)
+  // Tentativas
   called: boolean | null;
   called2: boolean | null;
   called3: boolean | null;
   called4: boolean | null;
 
+  // --- NOVOS CAMPOS DE CUSTO ---
+  // Aceita string ("0.15") ou number, caso o banco mude
+  call1_custo: string | number | null;
+  call2_custo: string | number | null;
+  call3_custo: string | number | null;
+  call4_custo: string | number | null;
+
   sms1: string | null;
   sms2: string | null;
   created_at: string | null;
 
-  // Status de texto do SIP
   call1_status: string | null;
   call2_status: string | null;
 
-  // Datas de disparo
   call1_hour: string | null;
   call2_hour: string | null;
 
-  // Snapshots de conversão (Campos calculados)
-  pos_login_static: string | null;  // Data que confirmou o login pós call
-  last_login_static: string | null; // O snapshot do login antes da call
+  pos_login_static: string | null;
+  last_login_static: string | null;
 
-  // --- NOVO CAMPO DO SCHEMA ---
   call_count: number | null;
 }

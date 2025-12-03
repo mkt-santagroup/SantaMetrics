@@ -1,3 +1,4 @@
+// src/components/SmartChart.tsx
 import { useState, useMemo } from 'react';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
@@ -8,7 +9,7 @@ import {
 } from 'date-fns'; 
 import styles from './SmartChart.module.css';
 import { CallLead } from '@/types/callLeads';
-import { Users, PhoneIncoming, CheckCircle2, Sparkles, CalendarClock } from 'lucide-react';
+import { Users, PhoneIncoming, CheckCircle2, Sparkles, CalendarClock, DollarSign } from 'lucide-react'; // Importei DollarSign
 import { useTheme } from '@/context/ThemeContext';
 import { DateFilterType } from './DateRangePicker';
 
@@ -17,19 +18,23 @@ interface SmartChartProps {
   dateFilter: DateFilterType;
 }
 
+// Configuração das métricas (Adicionei 'cost')
 const METRICS_CONFIG = {
-  total: { label: 'Total de Leads', color: '#4285F4', icon: Users },      
-  answered: { label: 'Atendidas', color: '#34A853', icon: PhoneIncoming }, 
-  posCallSameDay: { label: 'Recuperados no Dia', color: '#FBBC05', icon: CheckCircle2 }, 
-  posCall7d: { label: 'Recuperados (7 Dias)', color: '#3B82F6', icon: CalendarClock }, 
-  organic: { label: 'Recuperados Antes', color: '#A142F4', icon: Sparkles }   
+  total: { label: 'Total de Leads', color: '#4285F4', icon: Users, isCurrency: false },      
+  answered: { label: 'Atendidas', color: '#34A853', icon: PhoneIncoming, isCurrency: false }, 
+  posCallSameDay: { label: 'Recuperados no Dia', color: '#FBBC05', icon: CheckCircle2, isCurrency: false }, 
+  posCall7d: { label: 'Recuperados (7 Dias)', color: '#3B82F6', icon: CalendarClock, isCurrency: false }, 
+  organic: { label: 'Recuperados Antes', color: '#A142F4', icon: Sparkles, isCurrency: false },
+  // Nova métrica de custo (Vermelho para chamar atenção)
+  cost: { label: 'Custo Total', color: '#EF4444', icon: DollarSign, isCurrency: true } 
 };
 
 export default function SmartChart({ data, dateFilter }: SmartChartProps) {
   const { theme } = useTheme();
   
+  // Ativa o 'cost' por padrão
   const [activeMetrics, setActiveMetrics] = useState<string[]>([
-    'total', 'answered', 'posCallSameDay', 'posCall7d', 'organic'
+    'total', 'answered', 'cost'
   ]);
 
   const toggleMetric = (key: string) => {
@@ -42,22 +47,29 @@ export default function SmartChart({ data, dateFilter }: SmartChartProps) {
     }
   };
 
+  // Função auxiliar para converter string "0.15" em número 0.15
+  const parseCost = (val: string | number | null): number => {
+    if (!val) return 0;
+    // Troca vírgula por ponto se necessário, garante float
+    const normalized = String(val).replace(',', '.');
+    const num = parseFloat(normalized);
+    return isNaN(num) ? 0 : num;
+  };
+
+  // Formatador de Moeda (R$)
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+  };
+
   const { chartData, totals } = useMemo(() => {
-    // --- 1. DEFINIÇÃO INTELIGENTE DO INTERVALO ---
+    // --- 1. DEFINIÇÃO DE DATAS ---
     let start: Date;
     let end: Date;
 
     if (dateFilter.value === 'lifetime') {
       if (data.length > 0) {
-        const validDates = data
-          .filter(d => d.created_at)
-          .map(d => parseISO(d.created_at!));
-        
-        if (validDates.length > 0) {
-          start = startOfDay(min(validDates)); 
-        } else {
-          start = subDays(new Date(), 30);
-        }
+        const validDates = data.filter(d => d.created_at).map(d => parseISO(d.created_at!));
+        start = validDates.length > 0 ? startOfDay(min(validDates)) : subDays(new Date(), 30);
       } else {
         start = subDays(new Date(), 30);
       }
@@ -72,7 +84,7 @@ export default function SmartChart({ data, dateFilter }: SmartChartProps) {
       end = addDays(end, 1);
     }
 
-    // --- 2. GERAÇÃO DO ESQUELETO ---
+    // --- 2. PREPARAR DADOS ---
     const allDays = eachDayOfInterval({ start, end });
     const aggregated: Record<string, any> = {};
     
@@ -81,60 +93,60 @@ export default function SmartChart({ data, dateFilter }: SmartChartProps) {
       aggregated[key] = { 
         date: key, 
         displayDate: format(day, 'dd/MM'), 
-        total: 0, answered: 0, posCallSameDay: 0, posCall7d: 0, organic: 0 
+        total: 0, answered: 0, posCallSameDay: 0, posCall7d: 0, organic: 0, cost: 0 
       };
     });
 
-    const totalCounts = { total: 0, answered: 0, posCallSameDay: 0, posCall7d: 0, organic: 0 };
+    const totalCounts = { total: 0, answered: 0, posCallSameDay: 0, posCall7d: 0, organic: 0, cost: 0 };
 
-    // --- STRINGS DE COMPARAÇÃO PARA O FILTRO (IGNORA TIMEZONE) ---
     const filterStartStr = dateFilter.from ? format(dateFilter.from, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
     const filterEndStr = dateFilter.to ? format(dateFilter.to, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
 
-    // --- 3. PREENCHIMENTO ---
+    // --- 3. SOMAR VALORES ---
     data.forEach(lead => {
       if (!lead.created_at) return;
-      
-      // FIX TIMEZONE: Pega os primeiros 10 caracteres (YYYY-MM-DD) direto do banco
       const dateKey = lead.created_at.substring(0, 10);
       
       if (!aggregated[dateKey] && dateFilter.value !== 'lifetime') return;
 
-      // FIX TIMEZONE PARA OS CARDS (TOTAIS):
-      // Usa comparação de strings ao invés de isBefore/isAfter com Date Objects
       const isInUserRange = dateFilter.value === 'lifetime' 
         ? true 
         : (dateKey >= filterStartStr && dateKey <= filterEndStr);
 
+      // SOMA DOS CUSTOS (0.15 + 0.20...)
+      const leadCost = 
+        parseCost(lead.call1_custo) + 
+        parseCost(lead.call2_custo) + 
+        parseCost(lead.call3_custo) + 
+        parseCost(lead.call4_custo);
+
+      if (aggregated[dateKey]) aggregated[dateKey].cost += leadCost;
+      if (isInUserRange) totalCounts.cost += leadCost;
+
+      // Métricas de Contagem
       if (aggregated[dateKey]) aggregated[dateKey].total++;
       if (isInUserRange) totalCounts.total++;
 
-      // B. Atendidas
       const isAnswered = lead.call1_status === 'ANSWERED' || lead.call2_status === 'ANSWERED';
       if (isAnswered) {
         if (aggregated[dateKey]) aggregated[dateKey].answered++;
         if (isInUserRange) totalCounts.answered++;
       }
 
-      // C. Lógica de Conversão
       if (lead.pos_login_static) {
         const posLoginDate = parseISO(lead.pos_login_static);
-        
         let callDate: Date | null = null;
         if (lead.call1_hour) callDate = parseISO(lead.call1_hour);
         else if (lead.call2_hour) callDate = parseISO(lead.call2_hour);
 
-        // 1. RECUPERADO NO DIA
         if (callDate && isSameDay(posLoginDate, callDate)) {
           if (aggregated[dateKey]) aggregated[dateKey].posCallSameDay++;
           if (isInUserRange) totalCounts.posCallSameDay++;
         }
-        // 2. RECUPERADO ANTES
-        else if (!callDate || (callDate && posLoginDate < callDate)) { // Fix lógico simples
+        else if (!callDate || (callDate && posLoginDate < callDate)) {
           if (aggregated[dateKey]) aggregated[dateKey].organic++;
           if (isInUserRange) totalCounts.organic++;
         }
-        // 3. RECUPERADO 7 DIAS
         else {
           const diffDays = differenceInDays(posLoginDate, callDate!);
           if (diffDays <= 7) {
@@ -145,9 +157,7 @@ export default function SmartChart({ data, dateFilter }: SmartChartProps) {
       }
     });
 
-    const sortedData = Object.values(aggregated).sort((a: any, b: any) => 
-      a.date.localeCompare(b.date)
-    );
+    const sortedData = Object.values(aggregated).sort((a: any, b: any) => a.date.localeCompare(b.date));
 
     return { chartData: sortedData, totals: totalCounts };
   }, [data, dateFilter]); 
@@ -159,14 +169,21 @@ export default function SmartChart({ data, dateFilter }: SmartChartProps) {
   return (
     <div className={styles.container}>
       
-      <div className={styles.headerGrid}>
+      {/* Cards de Métricas */}
+      <div className={styles.headerGrid} style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>
         {(Object.keys(METRICS_CONFIG) as Array<keyof typeof METRICS_CONFIG>).map((key) => {
           const config = METRICS_CONFIG[key];
           const isActive = activeMetrics.includes(key);
           const Icon = config.icon;
           
+          let displayValue: string | number = totals[key];
+          if (config.isCurrency) {
+             displayValue = formatCurrency(totals[key]); // Ex: R$ 1.250,00
+          }
+
           let percent = 0;
-          if (key !== 'total' && totals.total > 0) {
+          // Não calcula % para custo, pois misturar R$ com Qtd não faz sentido
+          if (key !== 'total' && key !== 'cost' && totals.total > 0) {
             percent = (totals[key] / totals.total) * 100;
           }
 
@@ -183,9 +200,9 @@ export default function SmartChart({ data, dateFilter }: SmartChartProps) {
                 {config.label}
               </div>
               
-              <div className={styles.mainValue}>
-                {totals[key]}
-                {key !== 'total' && <span className={styles.subValue}>({percent.toFixed(1)}%)</span>}
+              <div className={styles.mainValue} style={{ fontSize: config.isCurrency ? '1.3rem' : '1.6rem' }}>
+                {displayValue}
+                {key !== 'total' && key !== 'cost' && <span className={styles.subValue}>({percent.toFixed(1)}%)</span>}
               </div>
             </div>
           );
@@ -215,13 +232,32 @@ export default function SmartChart({ data, dateFilter }: SmartChartProps) {
               interval="preserveStartEnd"
               minTickGap={30}
             />
+            
+            {/* EIXO ESQUERDO (LEADS) */}
             <YAxis 
+              yAxisId="left"
               axisLine={false} 
               tickLine={false} 
               tick={{fill: textColor, fontSize: 11}} 
             />
+
+            {/* EIXO DIREITO (DINHEIRO) - Só aparece se 'cost' estiver ativo */}
+            <YAxis 
+              yAxisId="right"
+              orientation="right"
+              axisLine={false} 
+              tickLine={false} 
+              tick={{fill: METRICS_CONFIG.cost.color, fontSize: 11, fontWeight: 600}} 
+              tickFormatter={(val) => `R$ ${val}`} // Formata eixo Y
+              hide={!activeMetrics.includes('cost')}
+            />
             
             <Tooltip 
+              formatter={(value: any, name: any, props: any) => {
+                // Formatação dentro do Tooltip (hover)
+                if (props.dataKey === 'cost') return [formatCurrency(value), 'Custo'];
+                return [value, name];
+              }}
               contentStyle={{
                 backgroundColor: isDark ? '#171717' : '#fff',
                 borderColor: isDark ? '#333' : '#ddd',
@@ -234,11 +270,16 @@ export default function SmartChart({ data, dateFilter }: SmartChartProps) {
 
             {(Object.keys(METRICS_CONFIG) as Array<keyof typeof METRICS_CONFIG>).map((key) => {
               if (!activeMetrics.includes(key)) return null;
+              
+              // Se for custo, usa o eixo da direita (right), senão o da esquerda (left)
+              const yAxisId = key === 'cost' ? 'right' : 'left';
+
               return (
                 <Area 
                   key={key}
                   type="monotone" 
                   dataKey={key} 
+                  yAxisId={yAxisId} 
                   name={METRICS_CONFIG[key].label}
                   stroke={METRICS_CONFIG[key].color} 
                   fillOpacity={1} 

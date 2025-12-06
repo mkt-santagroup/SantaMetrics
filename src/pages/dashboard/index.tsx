@@ -13,8 +13,7 @@ import Navbar from '@/components/Navbar';
 import DashboardOverview from '@/components/DashboardOverview';
 import ViewsDashboard from '@/components/ViewsDashboard';
 
-// --- NOVO COMPONENTE DE CALL CENTER ---
-// Substitui a antiga tabela manual e corrige o erro de importação
+// --- NOVO: Usamos o componente unificado que funciona ---
 import CallLeadsList from '@/components/CallCenter/CallLeadsList'; 
 
 // Ícones e Utils
@@ -23,7 +22,7 @@ import { Wifi, WifiOff } from 'lucide-react';
 export default function Dashboard() {
   const router = useRouter();
   
-  // Estados de Dados (Apenas WhatsApp precisa ser gerido aqui agora)
+  // Estados de Dados (Apenas WhatsApp é gerido aqui agora)
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -45,8 +44,8 @@ export default function Dashboard() {
 
     fetchLeads();
 
-    // Mantemos o realtime apenas para o WhatsApp por enquanto,
-    // pois o CallLeadsList gerencia seu próprio realtime/polling internamente.
+    // Mantemos o realtime apenas para o WhatsApp por enquanto.
+    // O CallLeadsList gerencia seu próprio polling internamente.
     const channelLeads = supabase.channel('realtime-leads')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'WPP-UNIVERSO_RP-LEADS' }, (payload) => handleRealtimeChange(payload, setLeads))
       .subscribe((status) => status === 'SUBSCRIBED' ? setIsConnected(true) : setIsConnected(false));
@@ -86,7 +85,6 @@ export default function Dashboard() {
       <div className={styles.container}>
         
         {/* CABEÇALHO (Apenas para a aba WhatsApp) */}
-        {/* As abas Call e Views agora gerenciam seus próprios títulos internamente */}
         {currentTab === 'leads' && (
           <div className={styles.pageHeader}>
             <div>
@@ -111,7 +109,6 @@ export default function Dashboard() {
         )}
 
         <main className={styles.content}>
-          {/* Loading inicial apenas se estiver na aba leads e vazio */}
           {loading && leads.length === 0 && currentTab === 'leads' ? (
             <div className={styles.loading} style={{ color: 'var(--text-secondary)' }}>
               Conectando ao banco de dados... 🛰️
@@ -126,7 +123,7 @@ export default function Dashboard() {
                 </>
               )}
               
-              {/* ABA 2: CALL CENTER (NOVA VERSÃO CORRIGIDA) */}
+              {/* ABA 2: CALL CENTER (Agora limpo e sem erros de importação) */}
               {currentTab === 'call' && (
                 <CallLeadsList />
               )}

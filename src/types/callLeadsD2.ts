@@ -1,4 +1,3 @@
-// src/types/callLeadsD2.ts
 export interface CallLeadD2 {
   id: number;
   passport: number;
@@ -8,14 +7,17 @@ export interface CallLeadD2 {
   first_spawn: string | null;
   
   last_login_at_ingestion: string;
-  current_last_login: string;
+  current_last_login: string | null; // Pode ser nulo
   
-  // NOVOS CAMPOS
-  called_at: string | null;       // Data/Hora da ligação
+  called_at: string | null;
   recovery_type: 'ORGANIC' | 'SAME_DAY' | 'LATE' | 'NONE' | null;
   
   status: 'PENDING' | 'CALLED' | 'RECOVERED' | 'FAILED';
   is_recovered: boolean;
   
   created_at: string;
+
+  // --- NOVOS CAMPOS PARA CORRIGIR O ERRO ---
+  call_count?: number; 
+  call_history?: any[]; // Array de histórico (JSONB)
 }

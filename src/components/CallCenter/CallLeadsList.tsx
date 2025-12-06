@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { CallLeadD2 } from '@/types/callLeadsD2';
 import { format, isSameDay, differenceInDays, subDays, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { RefreshCw, Phone, DownloadCloud, CheckCircle, Clock, PhoneOutgoing, XCircle, Zap, Copy, ChevronLeft, ChevronRight } from 'lucide-react';
+import { RefreshCw, Phone, DownloadCloud, CheckCircle, Clock, PhoneOutgoing, XCircle, Zap, Copy, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import TriggerCallModal from '@/components/TriggerCallModal';
 import CallDashboardOverview from './CallDashboardOverview';
 import { DateFilterType } from '@/components/DateRangePicker';
@@ -41,10 +41,11 @@ const getStatusConfig = (lead: CallLeadD2) => {
 export default function CallLeadsList() {
   const [leads, setLeads] = useState<CallLeadD2[]>([]);
   const [loadingList, setLoadingList] = useState(false);
-  const [ingesting, setIngesting] = useState(false);
-  const [updating, setUpdating] = useState(false);
   const [callingId, setCallingId] = useState<number | null>(null);
   const [showTriggerModal, setShowTriggerModal] = useState(false);
+  
+  // Estado para indicar automação rodando (sem bloquear UI)
+  const [isAutoSyncing, setIsAutoSyncing] = useState(false);
 
   // --- PAGINAÇÃO ---
   const [currentPage, setCurrentPage] = useState(1);
@@ -68,7 +69,37 @@ export default function CallLeadsList() {
     setLoadingList(false);
   }
 
-  useEffect(() => { fetchLeads(); }, []);
+  // --- AUTOMATIZAÇÃO (POLLING) ---
+  useEffect(() => {
+    // 1. Carrega inicial
+    fetchLeads();
+    
+    // 2. Função unificada de sincronização
+    const runAutomation = async () => {
+        setIsAutoSyncing(true);
+        console.log('🔄 [AUTO] Iniciando ciclo de atualização...');
+        try {
+            // Roda Ingestão (Silencioso)
+            await handleIngest(true);
+            // Roda Atualização (Silencioso)
+            await handleUpdate(true);
+            console.log('✅ [AUTO] Ciclo finalizado.');
+        } catch (error) {
+            console.error('❌ [AUTO] Erro no ciclo:', error);
+        } finally {
+            setIsAutoSyncing(false);
+        }
+    };
+
+    // 3. Roda imediatamente ao montar (além do fetchLeads) para garantir dados frescos
+    runAutomation();
+
+    // 4. Configura intervalo de 10 minutos (600.000 ms)
+    const intervalId = setInterval(runAutomation, 10 * 60 * 1000);
+
+    // Limpa ao desmontar
+    return () => clearInterval(intervalId);
+  }, []);
 
   // --- LÓGICA DE FILTRAGEM ---
   const filteredLeads = useMemo(() => {
@@ -91,23 +122,31 @@ export default function CallLeadsList() {
 
   useEffect(() => { setCurrentPage(1); }, [dateFilter, itemsPerPage]);
 
-  // --- ACTIONS ---
-  const handleIngest = async () => {
-    setIngesting(true);
+  // --- ACTIONS (AGORA COM MODO SILENCIOSO) ---
+  const handleIngest = async (silent = false) => {
     try {
       const res = await fetch('/api/leads/sync-d2', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'ingest' }) });
       const json = await res.json();
-      if (res.ok) { alert(`Sucesso! ${json.novos} novos leads.`); fetchLeads(); } else { alert('Erro: ' + json.error); }
-    } catch (err) { alert('Erro de conexão.'); } finally { setIngesting(false); }
+      if (res.ok) { 
+          if(!silent && json.novos > 0) alert(`Sucesso! ${json.novos} novos leads.`);
+          if(json.novos > 0) fetchLeads(); // Só recarrega se tiver novidade
+      } else { 
+          if(!silent) alert('Erro: ' + json.error); 
+      }
+    } catch (err) { if(!silent) alert('Erro de conexão.'); }
   };
 
-  const handleUpdate = async () => {
-    setUpdating(true);
+  const handleUpdate = async (silent = false) => {
     try {
       const res = await fetch('/api/leads/sync-d2', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'update' }) });
       const json = await res.json();
-      if (res.ok) { alert(`Verificado! ${json.recuperados} recuperados.`); fetchLeads(); } else { alert('Erro: ' + json.error); }
-    } catch (err) { alert('Erro de conexão.'); } finally { setUpdating(false); }
+      if (res.ok) { 
+          if(!silent && json.recuperados > 0) alert(`Verificado! ${json.recuperados} recuperados.`);
+          if(json.recuperados > 0) fetchLeads(); // Só recarrega se tiver mudança
+      } else { 
+          if(!silent) alert('Erro: ' + json.error); 
+      }
+    } catch (err) { if(!silent) alert('Erro de conexão.'); }
   };
 
   const handleCall = async (lead: CallLeadD2) => {
@@ -124,32 +163,31 @@ export default function CallLeadsList() {
     } catch (error: any) { alert(`Erro: ${error.message}`); } finally { setCallingId(null); }
   };
 
-  // --- COPIAR PASSPORTS (CORRIGIDO) ---
   const handleCopyIds = () => {
     if (filteredLeads.length === 0) return alert('Nenhum lead filtrado.');
-    // Pega o passport em vez do ID
     const passports = filteredLeads.map(l => l.passport).join(', '); 
-    const sql = `WHERE ch.id IN ( ${passports} )`;
-    
+    const sql = `WHERE passport IN ( ${passports} )`;
     navigator.clipboard.writeText(sql).then(() => {
-        alert(`✅ ${filteredLeads.length} Passports copiados para a área de transferência!`);
+        alert(`✅ ${filteredLeads.length} Passports copiados!`);
     }).catch(() => alert('Erro ao copiar.'));
   };
 
-  // --- BOTÕES INJETADOS ---
+  // --- BOTÕES INJETADOS (LIMPOS - SEM BUSCAR/ATUALIZAR) ---
   const ActionButtons = (
-    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-      <button onClick={handleIngest} disabled={ingesting || updating} style={{ background: 'var(--bg-card)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', padding: '10px 16px', borderRadius: '12px', fontWeight: 700, fontSize: '0.8rem', cursor: (ingesting||updating)?'not-allowed':'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s' }}>
-        <DownloadCloud size={16} className={ingesting ? 'spin' : ''} /> {ingesting ? 'Buscando...' : 'Buscar'}
-      </button>
-      <button onClick={handleUpdate} disabled={ingesting || updating} style={{ background: 'var(--text-primary)', color: 'var(--bg-card)', border: 'none', padding: '10px 16px', borderRadius: '12px', fontWeight: 700, fontSize: '0.8rem', cursor: (ingesting||updating)?'not-allowed':'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s' }}>
-        <RefreshCw size={16} className={updating ? 'spin' : ''} /> {updating ? 'Verificando...' : 'Atualizar'}
-      </button>
+    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+      
+      {/* Indicador de Automação */}
+      {isAutoSyncing && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 10, color: 'var(--text-secondary)', fontSize: '0.75rem', animation: 'fadeIn 0.3s' }}>
+            <Loader2 size={14} className="spin" />
+            <span>Sincronizando...</span>
+        </div>
+      )}
+
       <button onClick={() => setShowTriggerModal(true)} style={{ background: '#000', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: '12px', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s' }}>
         <PhoneOutgoing size={16} /> Disparar
       </button>
       
-      {/* BOTÃO COPIAR (PASSPORT) */}
       <button onClick={handleCopyIds} style={{ background: 'var(--bg-hover)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', padding: '10px 16px', borderRadius: '12px', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s' }}>
         <Copy size={16} /> SQL
       </button>
@@ -230,11 +268,7 @@ export default function CallLeadsList() {
         <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-card)' }}>
             <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display:'flex', alignItems:'center', gap: 10 }}>
                 <span>Itens por página:</span>
-                <select 
-                    value={itemsPerPage} 
-                    onChange={(e) => setItemsPerPage(Number(e.target.value))}
-                    style={{ background: 'var(--bg-hover)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', padding: '4px 8px', borderRadius: '6px', fontSize: '0.85rem', outline: 'none' }}
-                >
+                <select value={itemsPerPage} onChange={(e) => setItemsPerPage(Number(e.target.value))} style={{ background: 'var(--bg-hover)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', padding: '4px 8px', borderRadius: '6px', fontSize: '0.85rem', outline: 'none' }}>
                     <option value={10}>10</option>
                     <option value={20}>20</option>
                     <option value={50}>50</option>
@@ -242,20 +276,11 @@ export default function CallLeadsList() {
                 </select>
                 <span style={{marginLeft: 10}}>Página {currentPage} de {totalPages}</span>
             </div>
-
             <div style={{ display: 'flex', gap: '8px' }}>
-                <button 
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
-                    disabled={currentPage === 1}
-                    style={{ padding: '8px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-hover)', color: 'var(--text-primary)', cursor: currentPage === 1 ? 'not-allowed' : 'pointer', opacity: currentPage === 1 ? 0.5 : 1 }}
-                >
+                <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} style={{ padding: '8px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-hover)', color: 'var(--text-primary)', cursor: currentPage === 1 ? 'not-allowed' : 'pointer', opacity: currentPage === 1 ? 0.5 : 1 }}>
                     <ChevronLeft size={16} />
                 </button>
-                <button 
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
-                    disabled={currentPage === totalPages || totalPages === 0}
-                    style={{ padding: '8px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-hover)', color: 'var(--text-primary)', cursor: currentPage === totalPages ? 'not-allowed' : 'pointer', opacity: currentPage === totalPages ? 0.5 : 1 }}
-                >
+                <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages || totalPages === 0} style={{ padding: '8px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-hover)', color: 'var(--text-primary)', cursor: currentPage === totalPages ? 'not-allowed' : 'pointer', opacity: currentPage === totalPages ? 0.5 : 1 }}>
                     <ChevronRight size={16} />
                 </button>
             </div>

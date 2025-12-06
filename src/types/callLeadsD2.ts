@@ -7,7 +7,7 @@ export interface CallLeadD2 {
   first_spawn: string | null;
   
   last_login_at_ingestion: string;
-  current_last_login: string | null; // Pode ser nulo
+  current_last_login: string | null;
   
   called_at: string | null;
   recovery_type: 'ORGANIC' | 'SAME_DAY' | 'LATE' | 'NONE' | null;
@@ -17,7 +17,7 @@ export interface CallLeadD2 {
   
   created_at: string;
 
-  // --- NOVOS CAMPOS PARA CORRIGIR O ERRO ---
+  // --- NOVOS CAMPOS ADICIONADOS ---
   call_count?: number; 
-  call_history?: any[]; // Array de histórico (JSONB)
+  call_history?: any[]; // Array JSONB
 }

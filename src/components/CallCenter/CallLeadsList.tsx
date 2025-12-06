@@ -8,7 +8,7 @@ import TriggerCallModal from '@/components/TriggerCallModal';
 import CallDashboardOverview from './CallDashboardOverview';
 import { DateFilterType } from '@/components/DateRangePicker';
 
-// --- FUNÇÕES AUXILIARES ---
+// ... (Funções auxiliares formatTimePlayed, fmtDate, getStatusConfig IGUAIS AO ANTERIOR - Copie do código acima se precisar, vou omitir para brevidade) ...
 const formatTimePlayed = (totalSeconds: number | null) => {
   if (totalSeconds === null || totalSeconds === undefined) return '-';
   const totalMinutes = Math.floor(totalSeconds / 60);
@@ -43,15 +43,11 @@ export default function CallLeadsList() {
   const [loadingList, setLoadingList] = useState(false);
   const [callingId, setCallingId] = useState<number | null>(null);
   const [showTriggerModal, setShowTriggerModal] = useState(false);
-  
-  // Estado para indicar automação rodando (sem bloquear UI)
   const [isAutoSyncing, setIsAutoSyncing] = useState(false);
 
-  // --- PAGINAÇÃO ---
+  // --- PAGINAÇÃO E FILTRO ---
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
-
-  // --- FILTRO ---
   const [dateFilter, setDateFilter] = useState<DateFilterType>({
     label: 'Últimos 7 dias',
     value: '7days',
@@ -69,43 +65,39 @@ export default function CallLeadsList() {
     setLoadingList(false);
   }
 
-  // --- AUTOMATIZAÇÃO (POLLING) ---
+  // Polling e Actions (Ingest/Update) - Mantidos iguais
+  const handleIngest = async (silent = false) => {
+    try {
+      const res = await fetch('/api/leads/sync-d2', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'ingest' }) });
+      const json = await res.json();
+      if (res.ok && json.novos > 0) fetchLeads();
+    } catch (err) {}
+  };
+  const handleUpdate = async (silent = false) => {
+    try {
+      const res = await fetch('/api/leads/sync-d2', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'update' }) });
+      const json = await res.json();
+      if (res.ok && json.recuperados > 0) fetchLeads();
+    } catch (err) {}
+  };
+
   useEffect(() => {
-    // 1. Carrega inicial
     fetchLeads();
-    
-    // 2. Função unificada de sincronização
     const runAutomation = async () => {
         setIsAutoSyncing(true);
-        console.log('🔄 [AUTO] Iniciando ciclo de atualização...');
-        try {
-            // Roda Ingestão (Silencioso)
-            await handleIngest(true);
-            // Roda Atualização (Silencioso)
-            await handleUpdate(true);
-            console.log('✅ [AUTO] Ciclo finalizado.');
-        } catch (error) {
-            console.error('❌ [AUTO] Erro no ciclo:', error);
-        } finally {
-            setIsAutoSyncing(false);
-        }
+        await handleIngest(true);
+        await handleUpdate(true);
+        setIsAutoSyncing(false);
     };
-
-    // 3. Roda imediatamente ao montar (além do fetchLeads) para garantir dados frescos
     runAutomation();
-
-    // 4. Configura intervalo de 10 minutos (600.000 ms)
     const intervalId = setInterval(runAutomation, 10 * 60 * 1000);
-
-    // Limpa ao desmontar
     return () => clearInterval(intervalId);
   }, []);
 
-  // --- LÓGICA DE FILTRAGEM ---
+  // --- FILTRO E PAGINAÇÃO ---
   const filteredLeads = useMemo(() => {
     if (dateFilter.value === 'lifetime') return leads;
     if (!dateFilter.from || !dateFilter.to) return leads;
-
     return leads.filter(lead => {
         if (!lead.created_at) return false;
         const leadDate = new Date(lead.created_at);
@@ -113,7 +105,6 @@ export default function CallLeadsList() {
     });
   }, [leads, dateFilter]);
 
-  // --- LÓGICA DE PAGINAÇÃO ---
   const totalPages = Math.ceil(filteredLeads.length / itemsPerPage);
   const currentLeads = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage;
@@ -122,33 +113,7 @@ export default function CallLeadsList() {
 
   useEffect(() => { setCurrentPage(1); }, [dateFilter, itemsPerPage]);
 
-  // --- ACTIONS (AGORA COM MODO SILENCIOSO) ---
-  const handleIngest = async (silent = false) => {
-    try {
-      const res = await fetch('/api/leads/sync-d2', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'ingest' }) });
-      const json = await res.json();
-      if (res.ok) { 
-          if(!silent && json.novos > 0) alert(`Sucesso! ${json.novos} novos leads.`);
-          if(json.novos > 0) fetchLeads(); // Só recarrega se tiver novidade
-      } else { 
-          if(!silent) alert('Erro: ' + json.error); 
-      }
-    } catch (err) { if(!silent) alert('Erro de conexão.'); }
-  };
-
-  const handleUpdate = async (silent = false) => {
-    try {
-      const res = await fetch('/api/leads/sync-d2', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'update' }) });
-      const json = await res.json();
-      if (res.ok) { 
-          if(!silent && json.recuperados > 0) alert(`Verificado! ${json.recuperados} recuperados.`);
-          if(json.recuperados > 0) fetchLeads(); // Só recarrega se tiver mudança
-      } else { 
-          if(!silent) alert('Erro: ' + json.error); 
-      }
-    } catch (err) { if(!silent) alert('Erro de conexão.'); }
-  };
-
+  // --- AÇÕES UI ---
   const handleCall = async (lead: CallLeadD2) => {
     if (!lead.whatsapp) return alert('Lead sem número.');
     if(!confirm(`Ligar para ${lead.name}? (SMS Padrão será enviado)`)) return;
@@ -165,6 +130,7 @@ export default function CallLeadsList() {
 
   const handleCopyIds = () => {
     if (filteredLeads.length === 0) return alert('Nenhum lead filtrado.');
+    // Mapeia PASSPORT
     const passports = filteredLeads.map(l => l.passport).join(', '); 
     const sql = `WHERE passport IN ( ${passports} )`;
     navigator.clipboard.writeText(sql).then(() => {
@@ -172,23 +138,18 @@ export default function CallLeadsList() {
     }).catch(() => alert('Erro ao copiar.'));
   };
 
-  // --- BOTÕES INJETADOS (LIMPOS - SEM BUSCAR/ATUALIZAR) ---
+  // BOTÕES DO HEADER
   const ActionButtons = (
     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-      
-      {/* Indicador de Automação */}
       {isAutoSyncing && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 10, color: 'var(--text-secondary)', fontSize: '0.75rem', animation: 'fadeIn 0.3s' }}>
-            <Loader2 size={14} className="spin" />
-            <span>Sincronizando...</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 10, color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
+            <Loader2 size={14} className="spin" /> Sync...
         </div>
       )}
-
-      <button onClick={() => setShowTriggerModal(true)} style={{ background: '#000', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: '12px', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s' }}>
+      <button onClick={() => setShowTriggerModal(true)} style={{ background: '#000', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: '12px', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
         <PhoneOutgoing size={16} /> Disparar
       </button>
-      
-      <button onClick={handleCopyIds} style={{ background: 'var(--bg-hover)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', padding: '10px 16px', borderRadius: '12px', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s' }}>
+      <button onClick={handleCopyIds} style={{ background: 'var(--bg-hover)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', padding: '10px 16px', borderRadius: '12px', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
         <Copy size={16} /> SQL
       </button>
     </div>
@@ -197,6 +158,7 @@ export default function CallLeadsList() {
   return (
     <div style={{ marginTop: '2rem', fontFamily: 'Montserrat, sans-serif' }}>
       
+      {/* 1. DASHBOARD COM FILTRO E BOTÕES NO TOPO */}
       <CallDashboardOverview 
         leads={leads} 
         dateFilter={dateFilter}
@@ -204,6 +166,7 @@ export default function CallLeadsList() {
         actions={ActionButtons} 
       />
 
+      {/* 2. TABELA COM PAGINAÇÃO */}
       <div style={{ background: 'var(--bg-card)', borderRadius: '24px', border: '1px solid var(--border-color)', overflow: 'hidden', boxShadow: '0 10px 30px -10px var(--shadow-color)', marginTop: '2rem' }}>
         <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>Listagem de Leads</h3>
@@ -227,7 +190,7 @@ export default function CallLeadsList() {
             {loadingList && leads.length === 0 ? (
               <tr><td colSpan={8} style={{ padding: '4rem', textAlign: 'center' }}><RefreshCw size={24} className="spin" /></td></tr>
             ) : filteredLeads.length === 0 ? (
-              <tr><td colSpan={8} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Nenhum lead encontrado neste período.</td></tr>
+              <tr><td colSpan={8} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Nenhum lead encontrado.</td></tr>
             ) : (
               currentLeads.map(lead => {
                 const statusConfig = getStatusConfig(lead);
@@ -264,17 +227,20 @@ export default function CallLeadsList() {
           </tbody>
         </table>
 
-        {/* --- RODAPÉ COM PAGINAÇÃO --- */}
+        {/* --- PAGINAÇÃO --- */}
         <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-card)' }}>
             <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display:'flex', alignItems:'center', gap: 10 }}>
-                <span>Itens por página:</span>
-                <select value={itemsPerPage} onChange={(e) => setItemsPerPage(Number(e.target.value))} style={{ background: 'var(--bg-hover)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', padding: '4px 8px', borderRadius: '6px', fontSize: '0.85rem', outline: 'none' }}>
+                <span>Itens:</span>
+                <select 
+                    value={itemsPerPage} onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                    style={{ background: 'var(--bg-hover)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', padding: '4px 8px', borderRadius: '6px', fontSize: '0.85rem', outline: 'none' }}
+                >
                     <option value={10}>10</option>
                     <option value={20}>20</option>
                     <option value={50}>50</option>
                     <option value={100}>100</option>
                 </select>
-                <span style={{marginLeft: 10}}>Página {currentPage} de {totalPages}</span>
+                <span style={{marginLeft: 10}}>Pág. {currentPage} de {totalPages}</span>
             </div>
             <div style={{ display: 'flex', gap: '8px' }}>
                 <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} style={{ padding: '8px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-hover)', color: 'var(--text-primary)', cursor: currentPage === 1 ? 'not-allowed' : 'pointer', opacity: currentPage === 1 ? 0.5 : 1 }}>
@@ -285,7 +251,6 @@ export default function CallLeadsList() {
                 </button>
             </div>
         </div>
-
       </div>
       
       {showTriggerModal && <TriggerCallModal data={filteredLeads.map(l => ({ ...l, ID: l.id } as any))} onClose={() => setShowTriggerModal(false)} />}

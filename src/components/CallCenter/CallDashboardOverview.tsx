@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { CallLeadD2 } from '@/types/callLeadsD2';
-import { differenceInDays, isSameDay, format, subDays, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
+import { differenceInDays, isSameDay, format, subDays, isWithinInterval } from 'date-fns';
 import { AreaChart, Area, BarChart, Bar, Line, ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { CheckCircle, Clock, Zap, XCircle, Users, PhoneIncoming, AlertCircle, Phone } from 'lucide-react';
 import { useTheme } from '@/context/ThemeContext';
@@ -8,7 +8,7 @@ import DateRangePicker, { DateFilterType } from '@/components/DateRangePicker';
 
 interface CallDashboardOverviewProps {
   leads: CallLeadD2[];
-  // Props para controle externo (Injeção de dependência UI)
+  // Props para controle externo (State Lifting)
   dateFilter: DateFilterType;
   onFilterChange: (filter: DateFilterType) => void;
   actions?: React.ReactNode; 
@@ -202,22 +202,21 @@ export default function CallDashboardOverview({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', marginBottom: '2rem', animation: 'fadeIn 0.5s ease-out' }}>
       
-      {/* HEADER: TÍTULO À ESQUERDA, AÇÕES + FILTRO À DIREITA */}
+      {/* HEADER REORGANIZADO */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
             <h2 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0, color: textColor }}>
-                Gerenciamento de Ligações 
-                <span style={{ marginLeft: 10, fontSize: '0.7rem', background: '#10b981', color: '#fff', padding: '4px 8px', borderRadius: '4px', verticalAlign: 'middle' }}>LIVE</span>
+                Gerenciamento de Ligações <span style={{ marginLeft: 10, fontSize: '0.7rem', background: '#10b981', color: '#fff', padding: '4px 8px', borderRadius: '4px', verticalAlign: 'middle' }}>LIVE</span>
             </h2>
             <p style={{ color: subTextColor, fontSize: '0.9rem', marginTop: '4px', margin: 0 }}>
                 Dados em tempo real
             </p>
         </div>
         
-        {/* GRUPO DE AÇÕES */}
+        {/* GRUPO DE AÇÕES + FILTRO */}
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
             {actions} {/* Botões Injetados aqui */}
-            <div style={{ width: 1, height: 28, background: borderColor, margin: '0 4px', display: 'none' }} className="desktop-only-divider"></div>
+            <div style={{ width: 1, height: 28, background: borderColor, margin: '0 4px' }} className="desktop-only-divider"></div>
             <DateRangePicker currentFilter={dateFilter} onFilterChange={onFilterChange} />
         </div>
       </div>

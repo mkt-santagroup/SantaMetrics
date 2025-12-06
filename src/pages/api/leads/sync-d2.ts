@@ -116,7 +116,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
               // 2. DATA DA API (String "pelada", ex: 2025-12-03T23:59:15)
               // CORREÇÃO CRÍTICA: Se não tiver 'Z' nem '+', adicionamos 'Z' para forçar UTC.
-              let apiString = infoAtual.lastLogin;
+              // --- CORREÇÃO 1 AQUI ---
+              let apiString = (infoAtual as any).lastLogin;
+              
               if (!apiString.endsWith('Z') && !apiString.includes('+')) {
                   apiString += 'Z'; 
               }
@@ -129,7 +131,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               // Se diff for 0 (iguais), não entra.
               // Se diff for pequeno (segundos de delay), não entra.
               if (diff > 60000) { 
-                console.log(`✅ RECUPERADO REAL: #${chamado.passport} | DB: ${chamado.last_login_at_ingestion} -> API: ${infoAtual.lastLogin}`);
+                console.log(`✅ RECUPERADO REAL: #${chamado.passport} | DB: ${chamado.last_login_at_ingestion} -> API: ${(infoAtual as any).lastLogin}`);
 
                 let type = 'ORGANIC';
                 if (chamado.called_at) {
@@ -144,7 +146,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 await supabase
                   .from('CALL_LEADS_D2')
                   .update({
-                    current_last_login: infoAtual.lastLogin,
+                    // --- CORREÇÃO 2 AQUI ---
+                    current_last_login: (infoAtual as any).lastLogin,
                     is_recovered: true,
                     status: 'RECOVERED',
                     recovery_type: type,

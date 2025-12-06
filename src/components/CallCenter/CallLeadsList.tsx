@@ -8,7 +8,7 @@ import TriggerCallModal from '@/components/TriggerCallModal';
 import CallDashboardOverview from './CallDashboardOverview';
 import { DateFilterType } from '@/components/DateRangePicker';
 
-// ... (Funções auxiliares formatTimePlayed, fmtDate, getStatusConfig IGUAIS AO ANTERIOR - Copie do código acima se precisar, vou omitir para brevidade) ...
+// --- FUNÇÕES AUXILIARES ---
 const formatTimePlayed = (totalSeconds: number | null) => {
   if (totalSeconds === null || totalSeconds === undefined) return '-';
   const totalMinutes = Math.floor(totalSeconds / 60);
@@ -41,6 +41,8 @@ const getStatusConfig = (lead: CallLeadD2) => {
 export default function CallLeadsList() {
   const [leads, setLeads] = useState<CallLeadD2[]>([]);
   const [loadingList, setLoadingList] = useState(false);
+  const [ingesting, setIngesting] = useState(false);
+  const [updating, setUpdating] = useState(false);
   const [callingId, setCallingId] = useState<number | null>(null);
   const [showTriggerModal, setShowTriggerModal] = useState(false);
   const [isAutoSyncing, setIsAutoSyncing] = useState(false);
@@ -65,22 +67,7 @@ export default function CallLeadsList() {
     setLoadingList(false);
   }
 
-  // Polling e Actions (Ingest/Update) - Mantidos iguais
-  const handleIngest = async (silent = false) => {
-    try {
-      const res = await fetch('/api/leads/sync-d2', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'ingest' }) });
-      const json = await res.json();
-      if (res.ok && json.novos > 0) fetchLeads();
-    } catch (err) {}
-  };
-  const handleUpdate = async (silent = false) => {
-    try {
-      const res = await fetch('/api/leads/sync-d2', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'update' }) });
-      const json = await res.json();
-      if (res.ok && json.recuperados > 0) fetchLeads();
-    } catch (err) {}
-  };
-
+  // --- AUTOMATIZAÇÃO (Polling) ---
   useEffect(() => {
     fetchLeads();
     const runAutomation = async () => {
@@ -94,10 +81,11 @@ export default function CallLeadsList() {
     return () => clearInterval(intervalId);
   }, []);
 
-  // --- FILTRO E PAGINAÇÃO ---
+  // --- LÓGICA DE FILTRAGEM ---
   const filteredLeads = useMemo(() => {
     if (dateFilter.value === 'lifetime') return leads;
     if (!dateFilter.from || !dateFilter.to) return leads;
+
     return leads.filter(lead => {
         if (!lead.created_at) return false;
         const leadDate = new Date(lead.created_at);
@@ -105,6 +93,7 @@ export default function CallLeadsList() {
     });
   }, [leads, dateFilter]);
 
+  // --- LÓGICA DE PAGINAÇÃO ---
   const totalPages = Math.ceil(filteredLeads.length / itemsPerPage);
   const currentLeads = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage;
@@ -113,7 +102,23 @@ export default function CallLeadsList() {
 
   useEffect(() => { setCurrentPage(1); }, [dateFilter, itemsPerPage]);
 
-  // --- AÇÕES UI ---
+  // --- ACTIONS ---
+  const handleIngest = async (silent = false) => {
+    try {
+      const res = await fetch('/api/leads/sync-d2', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'ingest' }) });
+      const json = await res.json();
+      if (res.ok && json.novos > 0) fetchLeads();
+    } catch (err) {}
+  };
+
+  const handleUpdate = async (silent = false) => {
+    try {
+      const res = await fetch('/api/leads/sync-d2', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'update' }) });
+      const json = await res.json();
+      if (res.ok && json.recuperados > 0) fetchLeads();
+    } catch (err) {}
+  };
+
   const handleCall = async (lead: CallLeadD2) => {
     if (!lead.whatsapp) return alert('Lead sem número.');
     if(!confirm(`Ligar para ${lead.name}? (SMS Padrão será enviado)`)) return;
@@ -128,9 +133,9 @@ export default function CallLeadsList() {
     } catch (error: any) { alert(`Erro: ${error.message}`); } finally { setCallingId(null); }
   };
 
+  // --- COPIAR SQL (CORRIGIDO: USA PASSPORT) ---
   const handleCopyIds = () => {
     if (filteredLeads.length === 0) return alert('Nenhum lead filtrado.');
-    // Mapeia PASSPORT
     const passports = filteredLeads.map(l => l.passport).join(', '); 
     const sql = `WHERE passport IN ( ${passports} )`;
     navigator.clipboard.writeText(sql).then(() => {
@@ -138,7 +143,7 @@ export default function CallLeadsList() {
     }).catch(() => alert('Erro ao copiar.'));
   };
 
-  // BOTÕES DO HEADER
+  // --- BOTÕES INJETADOS ---
   const ActionButtons = (
     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
       {isAutoSyncing && (
@@ -146,10 +151,10 @@ export default function CallLeadsList() {
             <Loader2 size={14} className="spin" /> Sync...
         </div>
       )}
-      <button onClick={() => setShowTriggerModal(true)} style={{ background: '#000', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: '12px', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <button onClick={() => setShowTriggerModal(true)} style={{ background: '#000', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: '12px', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s' }}>
         <PhoneOutgoing size={16} /> Disparar
       </button>
-      <button onClick={handleCopyIds} style={{ background: 'var(--bg-hover)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', padding: '10px 16px', borderRadius: '12px', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <button onClick={handleCopyIds} style={{ background: 'var(--bg-hover)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', padding: '10px 16px', borderRadius: '12px', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s' }}>
         <Copy size={16} /> SQL
       </button>
     </div>
@@ -158,7 +163,7 @@ export default function CallLeadsList() {
   return (
     <div style={{ marginTop: '2rem', fontFamily: 'Montserrat, sans-serif' }}>
       
-      {/* 1. DASHBOARD COM FILTRO E BOTÕES NO TOPO */}
+      {/* 1. DASHBOARD COM FILTRO E BOTÕES */}
       <CallDashboardOverview 
         leads={leads} 
         dateFilter={dateFilter}
@@ -190,7 +195,7 @@ export default function CallLeadsList() {
             {loadingList && leads.length === 0 ? (
               <tr><td colSpan={8} style={{ padding: '4rem', textAlign: 'center' }}><RefreshCw size={24} className="spin" /></td></tr>
             ) : filteredLeads.length === 0 ? (
-              <tr><td colSpan={8} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Nenhum lead encontrado.</td></tr>
+              <tr><td colSpan={8} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Nenhum lead encontrado neste período.</td></tr>
             ) : (
               currentLeads.map(lead => {
                 const statusConfig = getStatusConfig(lead);
@@ -231,10 +236,7 @@ export default function CallLeadsList() {
         <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-card)' }}>
             <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display:'flex', alignItems:'center', gap: 10 }}>
                 <span>Itens:</span>
-                <select 
-                    value={itemsPerPage} onChange={(e) => setItemsPerPage(Number(e.target.value))}
-                    style={{ background: 'var(--bg-hover)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', padding: '4px 8px', borderRadius: '6px', fontSize: '0.85rem', outline: 'none' }}
-                >
+                <select value={itemsPerPage} onChange={(e) => setItemsPerPage(Number(e.target.value))} style={{ background: 'var(--bg-hover)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', padding: '4px 8px', borderRadius: '6px', fontSize: '0.85rem', outline: 'none' }}>
                     <option value={10}>10</option>
                     <option value={20}>20</option>
                     <option value={50}>50</option>

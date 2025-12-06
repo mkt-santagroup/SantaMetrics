@@ -8,10 +8,9 @@ import DateRangePicker, { DateFilterType } from '@/components/DateRangePicker';
 
 interface CallDashboardOverviewProps {
   leads: CallLeadD2[];
-  // Props para controle externo (State Lifting)
   dateFilter: DateFilterType;
   onFilterChange: (filter: DateFilterType) => void;
-  actions?: React.ReactNode; 
+  actions?: React.ReactNode; // Recebe os botões do pai
 }
 
 export default function CallDashboardOverview({ 
@@ -23,7 +22,7 @@ export default function CallDashboardOverview({
   
   const { theme } = useTheme();
 
-  // CORES E ESTILOS
+  // Configuração de Cores
   const isDark = theme === 'dark';
   const textColor = isDark ? '#ededed' : '#111827';
   const subTextColor = isDark ? '#a3a3a3' : '#6b7280';
@@ -31,7 +30,7 @@ export default function CallDashboardOverview({
   const cardBg = isDark ? '#171717' : '#ffffff';
   const borderColor = isDark ? '#262626' : '#e5e7eb';
 
-  // --- 1. FILTRAR LEADS (Baseado na prop recebida do pai) ---
+  // --- FILTRO DE DATA (Aplicado aos gráficos e KPIs) ---
   const filteredLeads = useMemo(() => {
     if (dateFilter.value === 'lifetime') return leads;
     if (!dateFilter.from || !dateFilter.to) return leads;
@@ -43,7 +42,7 @@ export default function CallDashboardOverview({
     });
   }, [leads, dateFilter]);
 
-  // --- 2. CÁLCULO DOS KPIS ---
+  // --- CÁLCULO DOS KPIS ---
   const stats = useMemo(() => {
     let total = 0;
     let atendidas = 0;
@@ -97,7 +96,7 @@ export default function CallDashboardOverview({
     return { total, atendidas, recuperadosDia, recuperadosDepois, recuperadosAntes, naoRecuperados, aguardando, totalCusto };
   }, [filteredLeads]);
 
-  // --- 3. DADOS GRÁFICO (EVOLUÇÃO) ---
+  // --- DADOS GRÁFICO (EVOLUÇÃO) ---
   const leadChartData = useMemo(() => {
     let start = dateFilter.from || subDays(new Date(), 30);
     let end = dateFilter.to || new Date();
@@ -146,7 +145,7 @@ export default function CallDashboardOverview({
     return Array.from(daysMap.values());
   }, [filteredLeads, dateFilter]);
 
-  // --- 4. DADOS GRÁFICO (CHAMADAS) ---
+  // --- DADOS GRÁFICO (CHAMADAS) ---
   const callChartData = useMemo(() => {
     let start = dateFilter.from || subDays(new Date(), 30);
     let end = dateFilter.to || new Date();
@@ -202,20 +201,20 @@ export default function CallDashboardOverview({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', marginBottom: '2rem', animation: 'fadeIn 0.5s ease-out' }}>
       
-      {/* HEADER REORGANIZADO */}
+      {/* HEADER: BOTÕES E FILTRO ALINHADOS */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
             <h2 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0, color: textColor }}>
-                Gerenciamento de Ligações <span style={{ marginLeft: 10, fontSize: '0.7rem', background: '#10b981', color: '#fff', padding: '4px 8px', borderRadius: '4px', verticalAlign: 'middle' }}>LIVE</span>
+                Gerenciamento de Ligações 
+                <span style={{ marginLeft: 10, fontSize: '0.7rem', background: '#10b981', color: '#fff', padding: '4px 8px', borderRadius: '4px', verticalAlign: 'middle' }}>LIVE</span>
             </h2>
             <p style={{ color: subTextColor, fontSize: '0.9rem', marginTop: '4px', margin: 0 }}>
                 Dados em tempo real
             </p>
         </div>
         
-        {/* GRUPO DE AÇÕES + FILTRO */}
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-            {actions} {/* Botões Injetados aqui */}
+            {actions} {/* Botões aparecem aqui */}
             <div style={{ width: 1, height: 28, background: borderColor, margin: '0 4px' }} className="desktop-only-divider"></div>
             <DateRangePicker currentFilter={dateFilter} onFilterChange={onFilterChange} />
         </div>
@@ -238,7 +237,6 @@ export default function CallDashboardOverview({
 
       {/* GRÁFICOS */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(500px, 1fr))', gap: '1.5rem' }}>
-        {/* Tendência */}
         <div style={{ height: '350px', background: cardBg, borderRadius: '24px', padding: '1.5rem 2rem', border: `1px solid ${borderColor}`, boxShadow: '0 10px 30px -10px rgba(0, 0, 0, 0.05)' }}>
             <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.1rem', fontWeight: 700, color: textColor }}>Tendência de Recuperação</h3>
             <ResponsiveContainer width="100%" height="90%">
@@ -262,7 +260,6 @@ export default function CallDashboardOverview({
             </ResponsiveContainer>
         </div>
 
-        {/* Ligações */}
         <div style={{ height: '350px', background: cardBg, borderRadius: '24px', padding: '1.5rem 2rem', border: `1px solid ${borderColor}`, boxShadow: '0 10px 30px -10px rgba(0, 0, 0, 0.05)' }}>
             <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.1rem', fontWeight: 700, color: textColor, display:'flex', alignItems:'center', gap:8 }}>
                 <Phone size={20} /> Performance de Ligações

@@ -17,7 +17,7 @@ export interface CallLeadD2 {
   
   created_at: string;
 
-  // --- NOVOS CAMPOS ADICIONADOS ---
+  // --- CAMPOS NOVOS (Correção do Erro) ---
   call_count?: number; 
-  call_history?: any[]; // Array JSONB
+  call_history?: any[]; 
 }

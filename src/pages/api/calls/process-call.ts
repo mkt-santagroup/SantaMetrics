@@ -5,12 +5,9 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 // --- CONFIGURAÇÕES ---
-// Ligação (Disparo Pro)
-const DISPARO_TOKEN = '80bfd6e25aeca5f05b456dd186fa29455411a11a'; // Ideal: process.env.DISPARO_TOKEN
+const DISPARO_TOKEN = '80bfd6e25aeca5f05b456dd186fa29455411a11a';
 const AUDIO_ID = 'a3d4342b-b11b-4166-9062-bc57e0ba9c73';
-
-// SMS (Comtele)
-const COMTELE_KEY = '4b20f8a0-f59e-44a0-9d86-0c866934cbfd'; // Ideal: process.env.COMTELE_KEY
+const COMTELE_KEY = '4b20f8a0-f59e-44a0-9d86-0c866934cbfd';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -21,17 +18,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const { lead_id, phone, name, send_sms, sms_content } = req.body;
 
-  if (!lead_id || !phone) return res.status(400).json({ error: 'Dados incompletos.' });
+  // Proteção básica: Só reclama se não tiver telefone. O ID pode ser 0 ou null.
+  if (!phone) {
+      return res.status(400).json({ error: 'Telefone é obrigatório.' });
+  }
 
   try {
-    // Limpeza do telefone (Garanta que tenha DDD e 55)
+    // 1. LIMPEZA DO TELEFONE
     let cleanPhone = phone.replace(/\D/g, '');
     if (!cleanPhone.startsWith('55')) cleanPhone = '55' + cleanPhone;
 
-    console.log(`🚀 [CALL] Iniciando fluxo para ${name} ID: ${lead_id}`);
+    // Detecta se é modo manual (ID 0 ou 999999 ou nulo)
+    // Se for manual, setamos uma flag para pular o banco de dados
+    const isManual = !lead_id || lead_id == 0 || lead_id == 999999;
+
+    console.log(`🚀 [CALL] Iniciando... Lead: ${name || 'Manual'} | ID: ${lead_id} | Tel: ${cleanPhone} | Modo: ${isManual ? 'MANUAL (Sem DB)' : 'AUTOMÁTICO'}`);
 
     // =================================================================================
-    // 1. FAZER A LIGAÇÃO (MANTIDO - DISPARO PRO)
+    // 2. FAZER A LIGAÇÃO (DISPARO PRO)
     // =================================================================================
     const callRes = await fetch('https://gateway.disparopro.com.br/voice/v1/call/send', {
       method: 'POST',
@@ -54,35 +58,44 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       throw new Error(`Erro ao ligar: ${JSON.stringify(callData)}`);
     }
 
-    console.log(`📞 Ligação criada (ID: ${callId}). Aguardando 60s...`);
+    console.log(`📞 Ligação efetuada (ID: ${callId}). Aguardando 60s...`);
 
     // =================================================================================
-    // 2. ESPERAR 60 SEGUNDOS
+    // 3. ESPERAR 60 SEGUNDOS
     // =================================================================================
     await sleep(60000); 
 
     // =================================================================================
-    // 3. CONSULTAR STATUS DA LIGAÇÃO
+    // 4. CONSULTAR STATUS DA LIGAÇÃO (Opcional no manual, mas bom pra log)
     // =================================================================================
-    const statusRes = await fetch(`https://gateway.disparopro.com.br/voice/v1/call?id=${callId}`, {
-      method: 'GET',
-      headers: { 'token': DISPARO_TOKEN }
-    });
+    let finalStatus = 'UNKNOWN';
+    let finalPrice = 0;
 
-    const statusJson = await statusRes.json();
-    const callItem = statusJson.items ? statusJson.items[0] : (statusJson.data || statusJson);
-    
-    const finalStatus = callItem?.status_call || callItem?.status || 'UNKNOWN';
-    const finalPrice = callItem?.price || 0;
-
-    console.log(`🔎 Status Ligação: ${finalStatus} | Custo: ${finalPrice}`);
+    try {
+        const statusRes = await fetch(`https://gateway.disparopro.com.br/voice/v1/call?id=${callId}`, {
+          method: 'GET',
+          headers: { 'token': DISPARO_TOKEN }
+        });
+        const statusJson = await statusRes.json();
+        const callItem = statusJson.items ? statusJson.items[0] : (statusJson.data || statusJson);
+        finalStatus = callItem?.status_call || callItem?.status || 'UNKNOWN';
+        finalPrice = callItem?.price || 0;
+        console.log(`🔎 Status Ligação: ${finalStatus}`);
+    } catch (e) {
+        console.error('Erro ao consultar status (não crítico):', e);
+    }
 
     // =================================================================================
-    // 4. ENVIAR SMS (ALTERADO - COMTELE)
+    // 5. ENVIAR SMS (COMTELE)
     // =================================================================================
     if (send_sms && sms_content) {
         try {
-            console.log(`📤 Enviando SMS via Comtele para +${cleanPhone}...`);
+            const smsPayload = {
+                Receivers: `+${cleanPhone}`, 
+                Content: sms_content
+            };
+            
+            console.log(`📤 Enviando SMS...`);
             
             const smsRes = await fetch('https://sms.comtele.com.br/api/v2/send', {
                 method: 'POST',
@@ -90,72 +103,71 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                     'auth-key': COMTELE_KEY,
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                    Receivers: `+${cleanPhone}`, // Formato E.164 com '+'
-                    Content: sms_content
-                })
+                body: JSON.stringify(smsPayload)
             });
 
-            const smsData = await smsRes.json();
-
-            if (!smsRes.ok || !smsData.Success) {
-                console.error('❌ Erro Comtele:', smsData);
-            } else {
-                console.log(`✅ SMS Enviado com sucesso!`);
-            }
+            const smsText = await smsRes.text();
+            console.log(`✅ Resposta SMS: ${smsText}`);
 
         } catch (smsErr) {
-            console.error('Erro ao disparar SMS:', smsErr);
+            console.error('Erro no envio de SMS:', smsErr);
         }
     } else {
-        console.log(`🔕 SMS Ignorado (Configuração do usuário ou sem conteúdo).`);
+        console.log(`🔕 SMS não solicitado.`);
     }
 
     // =================================================================================
-    // 5. ATUALIZAR DB (SUPABASE)
+    // 6. ATUALIZAR DB (APENAS SE NÃO FOR MANUAL)
     // =================================================================================
-    const { data: currentLead } = await supabase
-      .from('CALL_LEADS_D2')
-      .select('call_count, call_history')
-      .eq('id', lead_id)
-      .single();
+    if (!isManual) {
+        // Tenta atualizar, mas se der erro de "lead não encontrado", não quebra a requisição
+        try {
+            const { data: currentLead, error: fetchError } = await supabase
+                .from('CALL_LEADS_D2')
+                .select('call_count, call_history')
+                .eq('id', lead_id)
+                .single();
 
-    const currentCount = (currentLead?.call_count || 0) + 1;
-    let currentHistory = currentLead?.call_history;
+            if (!fetchError && currentLead) {
+                const currentCount = (currentLead.call_count || 0) + 1;
+                let currentHistory = currentLead.call_history;
+                if (!Array.isArray(currentHistory)) currentHistory = [];
 
-    if (!Array.isArray(currentHistory)) {
-        currentHistory = [];
+                const newHistoryEntry = {
+                    call_number: currentCount,
+                    date: new Date().toISOString(),
+                    call_id: callId,
+                    status: finalStatus,
+                    price: finalPrice,
+                    sms_sent: !!(send_sms && sms_content)
+                };
+
+                await supabase
+                    .from('CALL_LEADS_D2')
+                    .update({
+                        call_count: currentCount,
+                        call_history: [...currentHistory, newHistoryEntry], 
+                        status: 'CALLED',
+                        called_at: new Date()
+                    })
+                    .eq('id', lead_id);
+            } else {
+                console.log(`⚠️ Lead ID ${lead_id} não encontrado no banco. Pulando update.`);
+            }
+        } catch (dbErr) {
+            console.error('Erro ao atualizar banco (ignorado):', dbErr);
+        }
+    } else {
+        console.log('🛑 Modo Manual: Nenhuma alteração feita no banco de dados.');
     }
-
-    const newHistoryEntry = {
-      call_number: currentCount,
-      date: new Date().toISOString(),
-      call_id: callId,
-      status: finalStatus,
-      price: finalPrice,
-      sms_sent: !!(send_sms && sms_content) // Flag para registro
-    };
-
-    const { error: updateError } = await supabase
-      .from('CALL_LEADS_D2')
-      .update({
-        call_count: currentCount,
-        call_history: [...currentHistory, newHistoryEntry], 
-        status: 'CALLED',
-        called_at: new Date()
-      })
-      .eq('id', lead_id);
-
-    if (updateError) throw updateError;
 
     return res.status(200).json({ 
       success: true, 
-      count: currentCount, 
       last_status: finalStatus 
     });
 
   } catch (err: any) {
-    console.error('Erro API Call:', err);
+    console.error('Erro CRÍTICO:', err);
     return res.status(500).json({ error: err.message });
   }
 }

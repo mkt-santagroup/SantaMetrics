@@ -13,9 +13,6 @@ import Navbar from '@/components/Navbar';
 import DashboardOverview from '@/components/DashboardOverview';
 import ViewsDashboard from '@/components/ViewsDashboard';
 
-// --- NOVO COMPONENTE DE CALL CENTER ---
-import CallLeadsList from '@/components/CallCenter/CallLeadsList'; 
-
 // Ícones e Utils
 import { Wifi, WifiOff } from 'lucide-react';
 

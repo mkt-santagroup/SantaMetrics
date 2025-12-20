@@ -54,7 +54,6 @@ export default function LeadsTable({ leads, onSelectLead }: LeadsTableProps) {
                 </td>
                 <td className={styles.nameCell}>
                   <div className={styles.nameWrapper}>
-                    {/* CORREÇÃO DO ERRO AQUI: Envelopamos o ícone numa span */}
                     {lead.spam && (
                       <span title="Possível SPAM" style={{ display: 'flex', alignItems: 'center' }}>
                          <AlertCircle size={14} className={styles.spamIcon} />

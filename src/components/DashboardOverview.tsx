@@ -5,16 +5,16 @@ import { AlertTriangle, Users, CheckCircle, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { getStageName } from '@/utils/stageMap';
-import { useTheme } from '@/context/ThemeContext'; // <--- IMPORTAR O TEMA
+import { useTheme } from '@/context/ThemeContext';
 
 interface DashboardOverviewProps {
   leads: Lead[];
 }
 
 export default function DashboardOverview({ leads }: DashboardOverviewProps) {
-  const { theme } = useTheme(); // <--- USAR O HOOK
+  const { theme } = useTheme();
 
-  // Define cores baseadas no tema para o Recharts (que não aceita var() CSS nativamente fácil)
+  // Define cores baseadas no tema para o Recharts
   const barColor = theme === 'dark' ? '#ffffff' : '#000000';
   const axisColor = theme === 'dark' ? '#9ca3af' : '#888';
   const gridColor = theme === 'dark' ? '#333' : '#f0f0f0';
@@ -110,7 +110,6 @@ export default function DashboardOverview({ leads }: DashboardOverviewProps) {
           <div style={{ width: '100%', height: 300 }}>
             <ResponsiveContainer>
               <BarChart data={dataGrafico}>
-                {/* Cores dinâmicas aplicadas aqui */}
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridColor} />
                 <XAxis 
                   dataKey="name" 
@@ -135,7 +134,6 @@ export default function DashboardOverview({ leads }: DashboardOverviewProps) {
                     color: tooltipText
                   }} 
                 />
-                {/* A cor da barra muda conforme o tema */}
                 <Bar dataKey="leads" fill={barColor} radius={[6, 6, 0, 0]} barSize={40} />
               </BarChart>
             </ResponsiveContainer>

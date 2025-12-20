@@ -13,9 +13,6 @@ import Navbar from '@/components/Navbar';
 import DashboardOverview from '@/components/DashboardOverview';
 import ViewsDashboard from '@/components/ViewsDashboard';
 
-// --- NOVO: Usamos o componente unificado que funciona ---
-import CallLeadsList from '@/components/CallCenter/CallLeadsList'; 
-
 // Ícones e Utils
 import { Wifi, WifiOff } from 'lucide-react';
 
@@ -28,7 +25,7 @@ export default function Dashboard() {
   
   // Estados de Controle
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
-  const [currentTab, setCurrentTab] = useState<'leads' | 'call' | 'views'>('leads');
+  const [currentTab, setCurrentTab] = useState<'leads' | 'views'>('leads');
   const [isConnected, setIsConnected] = useState(false);
 
   // --- 1. AUTH CHECK ---
@@ -44,8 +41,6 @@ export default function Dashboard() {
 
     fetchLeads();
 
-    // Mantemos o realtime apenas para o WhatsApp por enquanto.
-    // O CallLeadsList gerencia seu próprio polling internamente.
     const channelLeads = supabase.channel('realtime-leads')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'WPP-UNIVERSO_RP-LEADS' }, (payload) => handleRealtimeChange(payload, setLeads))
       .subscribe((status) => status === 'SUBSCRIBED' ? setIsConnected(true) : setIsConnected(false));
@@ -123,12 +118,7 @@ export default function Dashboard() {
                 </>
               )}
               
-              {/* ABA 2: CALL CENTER (Agora limpo e sem erros de importação) */}
-              {currentTab === 'call' && (
-                <CallLeadsList />
-              )}
-
-              {/* ABA 3: VIEWS */}
+              {/* ABA 2: VIEWS */}
               {currentTab === 'views' && (
                 <ViewsDashboard />
               )}

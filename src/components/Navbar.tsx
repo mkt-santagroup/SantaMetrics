@@ -1,12 +1,12 @@
 import styles from './Navbar.module.css'; // <--- O NOME DEVE SER EXATO
-import { Users, LogOut, PhoneCall, Sun, Moon, Eye } from 'lucide-react';
+import { Users, LogOut, Sun, Moon, Eye } from 'lucide-react';
 import { useRouter } from 'next/router';
 import Cookies from 'js-cookie';
 import { useTheme } from '@/context/ThemeContext';
 
 interface NavbarProps {
-  currentTab: 'leads' | 'call' | 'views';
-  onTabChange: (tab: 'leads' | 'call' | 'views') => void;
+  currentTab: 'leads' | 'views';
+  onTabChange: (tab: 'leads' | 'views') => void;
 }
 
 export default function Navbar({ currentTab, onTabChange }: NavbarProps) {
@@ -34,14 +34,6 @@ export default function Navbar({ currentTab, onTabChange }: NavbarProps) {
           >
             <Users size={18} />
             <span className={styles.tabText}>Whatsapp</span>
-          </button>
-
-          <button 
-            className={`${styles.tab} ${currentTab === 'call' ? styles.active : ''}`}
-            onClick={() => onTabChange('call')}
-          >
-            <PhoneCall size={18} />
-            <span className={styles.tabText}>Ligações</span>
           </button>
 
           <button 

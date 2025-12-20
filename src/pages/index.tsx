@@ -10,7 +10,7 @@ export default function Home() {
     const token = Cookies.get('santa_auth');
 
     if (token === 'logado') {
-      // Se estiver logado, manda pro Dashboard (que já está corrigido)
+      // Manda direto para o Dashboard (que já arrumamos)
       router.replace('/dashboard');
     } else {
       // Se não, manda pro Login
@@ -18,6 +18,5 @@ export default function Home() {
     }
   }, [router]);
 
-  // Retorna nulo para não renderizar nada quebrado enquanto redireciona
   return null; 
 }

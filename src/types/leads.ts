@@ -1,4 +1,3 @@
-// src/types/leads.ts
 export interface Lead {
   id: number;
   created_at: string;

@@ -1,11 +1,11 @@
+// src/types/leads.ts
 export interface Lead {
   id: number;
+  created_at: string;
   nome: string | null;
   numero: string | null;
-  spam: boolean | null;
-  memoria_longa: string | null;
   etapa: string | null;
+  tem_pc: string | null;
   observacoes: string | null;
-  created_at: string;
-  tem_pc: string | null; // <--- MUDOU PARA STRING
+  spam?: boolean;
 }

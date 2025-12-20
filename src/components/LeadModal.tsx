@@ -72,12 +72,6 @@ export default function LeadModal({ lead, onClose }: LeadModalProps) {
               {lead.observacoes || 'Nenhuma observação registrada.'}
             </div>
           </div>
-          <div className={styles.section}>
-            <span className={styles.label}>Memória Longa (Contexto)</span>
-            <div className={`${styles.value} ${styles.longText}`}>
-              {lead.memoria_longa || 'Sem histórico de memória.'}
-            </div>
-          </div>
         </div>
       </div>
     </div>
